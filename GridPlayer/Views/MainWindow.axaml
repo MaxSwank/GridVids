@@ -34,7 +34,6 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="10" IsVisible="{Binding IsControlBarVisible}">
 			<Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder"/>
 			<TextBlock Text="{Binding VideoPath}" VerticalAlignment="Center" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
-			<Button Command="{Binding TogglePlaybackCommand}" Content="Play" Background="LightGreen"/>
 			
             <TextBlock VerticalAlignment="Center" Text="Rows:"/>
             <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" IsEnabled="{Binding AreManualControlsEnabled}"/>
@@ -52,7 +51,6 @@
             <TextBlock Text="Delay:" VerticalAlignment="Center"/>
             <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center"/>
             
-            <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 			

@@ -107,12 +107,6 @@ namespace GridPlayer.Services
 
         public Process? StartMpvInstance(string videoPath, IntPtr windowHandle)
         {
-            // Backward compatibility wrapper
-            return StartMpvInstance(videoPath, windowHandle, false);
-        }
-
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool useSloMo)
-        {
             double startTime = 0;
             try
             {
@@ -127,11 +121,6 @@ namespace GridPlayer.Services
                 Debug.WriteLine($"Failed to determine start time: {ex.Message}");
             }
 
-            return StartMpvInstance(videoPath, windowHandle, startTime, useSloMo);
-        }
-
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, double startTime, bool useSloMo)
-        {
             string mpvPath = GetMpvBinaryPath();
 
             var args = new List<string>
@@ -160,20 +149,6 @@ namespace GridPlayer.Services
                 "--audio=no"
             };
 
-            if (useSloMo)
-            {
-                string scriptPath = GetScriptPath("slomo.lua");
-                if (File.Exists(scriptPath))
-                {
-                    // Explicitly start at 1.0 speed
-                    args.Add("--speed=1.0");
-                    args.Add($"--script=\"{scriptPath}\"");
-                }
-                else
-                {
-                    Debug.WriteLine($"Slo-mo script not found at {scriptPath}");
-                }
-            }
 
             var psi = new ProcessStartInfo
             {

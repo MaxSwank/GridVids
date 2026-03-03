@@ -9,6 +9,5 @@ namespace GridPlayer.Models
         public string SelectedGrid1 { get; set; } = "2x2";
         public string SelectedGrid2 { get; set; } = "3x3";
         public int SelectedDelay { get; set; } = 10;
-        public bool IsSloMoEnabled { get; set; } = false;
     }
 }

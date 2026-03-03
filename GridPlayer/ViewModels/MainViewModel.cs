@@ -36,7 +36,6 @@ namespace GridPlayer.ViewModels
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
-            _isSloMoEnabled = settings.IsSloMoEnabled;
 
 
             InitializeOptions();
@@ -108,7 +107,13 @@ namespace GridPlayer.ViewModels
         partial void OnVideoPathChanged(string value)
         {
             SaveSettings();
-            _ = _videoLibraryService.RefreshCacheAsync(value);
+            if (!string.IsNullOrEmpty(value))
+            {
+                _ = _videoLibraryService.RefreshCacheAsync(value).ContinueWith(t =>
+                {
+                    if (!t.IsFaulted) _ = ExecutePlayback();
+                }, TaskScheduler.FromCurrentSynchronizationContext());
+            }
         }
 
         public Func<Task<string?>>? ShowFolderPickerAsync { get; set; }
@@ -137,8 +142,7 @@ namespace GridPlayer.ViewModels
                 IsSwapEnabled = IsSwapEnabled,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
-                SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
-                IsSloMoEnabled = IsSloMoEnabled
+                SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay
             };
             _settingsService.SaveSettings(settings);
         }
@@ -259,7 +263,7 @@ namespace GridPlayer.ViewModels
             }
 
             // Start Playback
-            await _playbackService.PlayAsync(CollageSlots, videos, IsSloMoEnabled);
+            await _playbackService.PlayAsync(CollageSlots, videos);
 
             // Buffer Delay: Wait for content to load and play
             await Task.Delay(2000);
@@ -471,7 +475,7 @@ namespace GridPlayer.ViewModels
             var v = await _videoLibraryService.GetRandomVideosAsync(1);
             if (v.Any())
             {
-                await _playbackService.PlayAsync(new[] { s }, v, IsSloMoEnabled);
+                await _playbackService.PlayAsync(new[] { s }, v);
             }
         }
 
@@ -586,28 +590,6 @@ namespace GridPlayer.ViewModels
             };
         }
 
-        [RelayCommand]
-        public async Task TogglePlayback()
-        {
-            if (IsVideoPlaying)
-            {
-                Stop();
-            }
-            else
-            {
-                await ExecutePlayback();
-            }
-        }
-
-        [ObservableProperty]
-        private bool _isSloMoEnabled;
-
-        partial void OnIsSloMoEnabledChanged(bool value)
-        {
-            // Optionally restart playback or just apply to next
-            // User requested "when checked... video WILL start" -> implies next start.
-            SaveSettings();
-        }
 
         private async Task ExecutePlayback(List<string>? specificVideoList = null)
         {
@@ -651,7 +633,7 @@ namespace GridPlayer.ViewModels
             IsTitleBarVisible = false;
             UpdateVisibility();
 
-            await _playbackService.PlayAsync(VideoSlots, selectedVideos, IsSloMoEnabled);
+            await _playbackService.PlayAsync(VideoSlots, selectedVideos);
 
             if (firstRun)
             {
@@ -678,12 +660,7 @@ namespace GridPlayer.ViewModels
 
 
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(PlayButtonText))]
-        [NotifyPropertyChangedFor(nameof(PlayButtonColor))]
         private bool _isVideoPlaying = false;
-
-        public string PlayButtonText => IsVideoPlaying ? "Stop" : "Play";
-        public Avalonia.Media.IBrush PlayButtonColor => IsVideoPlaying ? Avalonia.Media.Brushes.OrangeRed : Avalonia.Media.Brushes.LightGreen;
 
         public void Stop()
         {
@@ -839,7 +816,7 @@ namespace GridPlayer.ViewModels
                 if (newVideos.Count == 0) return;
 
                 // 2. Start new instances (Delegated to PlaybackService)
-                await _playbackService.RefreshSlotsAsync(hiddenSlots, newVideos, IsSloMoEnabled);
+                await _playbackService.RefreshSlotsAsync(hiddenSlots, newVideos);
             }
             finally
             {

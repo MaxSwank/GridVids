@@ -22,7 +22,6 @@
     - **Fade-ins/Fade-outs**: Smooth transitions for new video slots.
     - **Occlusion Culling**: Intelligently kills hidden video processes to optimize system resources.
     - **Quad-Balanced Spawning**: Ensures even distribution of videos across all quadrants.
-- **🐢 Slo-Mo Mode**: Option to play videos at 60% speed for detailed observation.
 - **🎯 Intelligent Library**: Fast, cached video discovery in targeted folders with random selection logic.
 
 ---

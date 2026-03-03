@@ -17,7 +17,7 @@ namespace GridPlayer.Services
             _orchestrator = new ScriptOrchestrator();
         }
 
-        public async Task PlayAsync(IEnumerable<IGridSlot> slots, List<string> videos, bool useSloMo = false)
+        public async Task PlayAsync(IEnumerable<IGridSlot> slots, List<string> videos)
         {
             var tasks = new List<Task>();
             var slotList = new List<IGridSlot>(slots);
@@ -28,17 +28,17 @@ namespace GridPlayer.Services
                 {
                     var slot = slotList[i];
                     var video = videos[i];
-                    tasks.Add(TransitionSlotAsync(slot, video, useSloMo));
+                    tasks.Add(TransitionSlotAsync(slot, video));
                 }
             }
 
             await Task.WhenAll(tasks);
         }
 
-        public async Task RefreshSlotsAsync(IEnumerable<IGridSlot> slots, List<string> videos, bool useSloMo = false)
+        public async Task RefreshSlotsAsync(IEnumerable<IGridSlot> slots, List<string> videos)
         {
             // Similar to PlayAsync but used for refreshing specific slots (like hidden ones)
-            await PlayAsync(slots, videos, useSloMo);
+            await PlayAsync(slots, videos);
         }
 
         public void Stop(IEnumerable<IGridSlot> slots)
@@ -54,7 +54,7 @@ namespace GridPlayer.Services
             }
         }
 
-        private async Task TransitionSlotAsync(IGridSlot slot, string videoPath, bool useSloMo)
+        private async Task TransitionSlotAsync(IGridSlot slot, string videoPath)
         {
             await _processLaunchSemaphore.WaitAsync();
             Process? newProcess = null;
@@ -64,7 +64,7 @@ namespace GridPlayer.Services
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, useSloMo));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle));
             }
             finally
             {
