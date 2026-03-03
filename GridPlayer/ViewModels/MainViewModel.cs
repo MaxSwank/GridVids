@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using GridPlayer.Models;
-using GridPlayer.Services;
+using GridVids.Models;
+using GridVids.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -10,7 +10,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 
-namespace GridPlayer.ViewModels
+namespace GridVids.ViewModels
 {
     public partial class MainViewModel : ObservableObject
     {

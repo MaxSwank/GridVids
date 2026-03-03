@@ -4,7 +4,7 @@ using Avalonia;
 using System;
 using System.Runtime.InteropServices;
 
-namespace GridPlayer.Controls
+namespace GridVids.Controls
 {
     public class NativeEmbeddingControl : NativeControlHost
     {
@@ -116,7 +116,7 @@ namespace GridPlayer.Controls
 
             IntPtr hWnd = CreateWindowEx(
                 0,
-                "GridPlayerHost",
+                "GridVidsHost",
                 "",
                 style,
                 0, 0, 800, 600,
@@ -141,7 +141,7 @@ namespace GridPlayer.Controls
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
                 hInstance = GetModuleHandle(null),
                 hbrBackground = IntPtr.Zero, // No background, let mpv draw
-                lpszClassName = "GridPlayerHost"
+                lpszClassName = "GridVidsHost"
             };
 
             RegisterClassEx(ref wndClass);

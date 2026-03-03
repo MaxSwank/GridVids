@@ -1,13 +1,13 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
-using GridPlayer.ViewModels;
+using GridVids.ViewModels;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
-namespace GridPlayer.Views;
+namespace GridVids.Views;
 
 public partial class MainWindow : Window
 {

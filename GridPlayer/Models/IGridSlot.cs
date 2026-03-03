@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
 
-namespace GridPlayer.Models
+namespace GridVids.Models
 {
     public interface IGridSlot
     {

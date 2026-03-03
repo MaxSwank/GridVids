@@ -1,7 +1,7 @@
-﻿using Avalonia;
+using Avalonia;
 using System;
 
-namespace GridPlayer;
+namespace GridVids;
 
 sealed class Program
 {
@@ -22,8 +22,8 @@ sealed class Program
                     // Use CurrentDirectory (the project folder) if we're in setup mode
                     string baseDir = Environment.CurrentDirectory;
                     Console.WriteLine($"Starting download into {baseDir}...");
-                    var f = GridPlayer.Services.BinaryDownloader.EnsureFfprobeAsync(null, baseDir);
-                    var m = GridPlayer.Services.BinaryDownloader.EnsureMpvAsync(null, baseDir);
+                    var f = GridVids.Services.BinaryDownloader.EnsureFfprobeAsync(null, baseDir);
+                    var m = GridVids.Services.BinaryDownloader.EnsureMpvAsync(null, baseDir);
                     await System.Threading.Tasks.Task.WhenAll(f, m);
                     Console.WriteLine("Binaries ready.");
                 }
@@ -40,8 +40,8 @@ sealed class Program
         try
         {
             // Ensure binaries exist in the execution directory
-            GridPlayer.Services.BinaryDownloader.EnsureFfprobeAsync().GetAwaiter().GetResult();
-            GridPlayer.Services.BinaryDownloader.EnsureMpvAsync().GetAwaiter().GetResult();
+            GridVids.Services.BinaryDownloader.EnsureFfprobeAsync().GetAwaiter().GetResult();
+            GridVids.Services.BinaryDownloader.EnsureMpvAsync().GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {

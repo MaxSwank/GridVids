@@ -4,10 +4,10 @@ using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
 using System.Linq;
 using Avalonia.Markup.Xaml;
-using GridPlayer.ViewModels;
-using GridPlayer.Views;
+using GridVids.ViewModels;
+using GridVids.Views;
 
-namespace GridPlayer;
+namespace GridVids;
 
 public partial class App : Application
 {

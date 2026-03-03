@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Linq;
 
-namespace GridPlayer.Services
+namespace GridVids.Services
 {
     public class ScriptOrchestrator
     {

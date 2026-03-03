@@ -1,11 +1,11 @@
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using CommunityToolkit.Mvvm.ComponentModel;
-using GridPlayer.ViewModels;
+using GridVids.ViewModels;
 using System;
 using System.Diagnostics.CodeAnalysis;
 
-namespace GridPlayer;
+namespace GridVids;
 
 /// <summary>
 /// Given a view model, returns the corresponding view if possible.

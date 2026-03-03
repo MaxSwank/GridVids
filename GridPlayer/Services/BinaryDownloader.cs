@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
-namespace GridPlayer.Services
+namespace GridVids.Services
 {
     public static class BinaryDownloader
     {
@@ -34,7 +34,7 @@ namespace GridPlayer.Services
             Console.WriteLine($"Downloading {binaryName} from {downloadUrl}...");
             using var http = new HttpClient();
             // GitHub requires a User-Agent
-            http.DefaultRequestHeaders.Add("User-Agent", "GridPlayer-BinaryDownloader");
+            http.DefaultRequestHeaders.Add("User-Agent", "GridVids-BinaryDownloader");
             using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);

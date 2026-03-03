@@ -1,9 +1,9 @@
-using GridPlayer.Models;
+using GridVids.Models;
 using System;
 using System.IO;
 using System.Text.Json;
 
-namespace GridPlayer.Services
+namespace GridVids.Services
 {
     public class SettingsService
     {
@@ -13,9 +13,9 @@ namespace GridPlayer.Services
         {
             try
             {
-                // Save to AppData/Local/GridPlayer/settings.json
+                // Save to AppData/Local/GridVids/settings.json
                 var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                var folder = Path.Combine(appData, "GridPlayer");
+                var folder = Path.Combine(appData, "GridVids");
                 if (!Directory.Exists(folder))
                 {
                     Directory.CreateDirectory(folder);

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace GridPlayer.Services
+namespace GridVids.Services
 {
     public class VideoLibraryService
     {

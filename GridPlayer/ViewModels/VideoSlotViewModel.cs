@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 
-namespace GridPlayer.ViewModels
+namespace GridVids.ViewModels
 {
     public partial class VideoSlotViewModel : ObservableObject, Models.IGridSlot
     {

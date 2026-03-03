@@ -1,11 +1,11 @@
-using GridPlayer.Models;
+using GridVids.Models;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace GridPlayer.Services
+namespace GridVids.Services
 {
     public class PlaybackService
     {

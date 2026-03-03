@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v8.0": {},
     ".NETCoreApp,Version=v8.0/win-x64": {
-      "GridPlayer/1.0.0": {
+      "GridVids/1.0.0": {
         "dependencies": {
           "Avalonia": "11.3.11",
           "Avalonia.Desktop": "11.3.11",
@@ -17,7 +17,7 @@
           "runtimepack.Microsoft.NETCore.App.Runtime.win-x64": "8.0.24"
         },
         "runtime": {
-          "GridPlayer.dll": {}
+          "GridVids.dll": {}
         }
       },
       "runtimepack.Microsoft.NETCore.App.Runtime.win-x64/8.0.24": {
@@ -983,7 +983,7 @@
     }
   },
   "libraries": {
-    "GridPlayer/1.0.0": {
+    "GridVids/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

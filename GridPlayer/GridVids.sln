@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GridPlayer", "GridPlayer.csproj", "{54AF3A80-DDDD-9A6A-4A17-BFCFFB4619BC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GridVids", "GridVids.csproj", "{54AF3A80-DDDD-9A6A-4A17-BFCFFB4619BC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

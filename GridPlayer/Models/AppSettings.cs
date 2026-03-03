@@ -1,4 +1,4 @@
-namespace GridPlayer.Models
+namespace GridVids.Models
 {
     public class AppSettings
     {
