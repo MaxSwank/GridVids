@@ -36,4 +36,16 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.2.1" />
   </ItemGroup>
+
+  <!-- Auto-download binaries at build time if they are missing -->
+  <Target Name="EnsureBinaries" BeforeTargets="BeforeBuild" Condition="'$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <BinDir>$(ProjectDir)Binaries\win-x64\</BinDir>
+      <MpvPath>$(BinDir)mpv.exe</MpvPath>
+      <FfprobePath>$(BinDir)ffprobe.exe</FfprobePath>
+    </PropertyGroup>
+    
+    <!-- Use a simple PowerShell script to avoid build-time complexities -->
+    <Exec Command="dotnet run --setup" Condition="!Exists('$(MpvPath)') or !Exists('$(FfprobePath)')" IgnoreExitCode="true" />
+  </Target>
 </Project>

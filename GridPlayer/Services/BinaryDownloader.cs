@@ -11,31 +11,30 @@ namespace GridPlayer.Services
     public static class BinaryDownloader
     {
         private const string DefaultFfprobeZipUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
-        private const string DefaultMpvZipUrl = "https://github.com/mpv-player/mpv-build/releases/latest/download/mpv-x86_64-w64-mingw32.zip";
+        private const string DefaultMpvZipUrl = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20260303/mpv-x86_64-v3-20260303-git-c55bdc3.7z";
 
-        public static Task<string> EnsureFfprobeAsync(string downloadUrl = null)
-            => EnsureBinaryFromArchiveAsync("ffprobe.exe", Path.Combine("Binaries", "win-x64"), downloadUrl ?? DefaultFfprobeZipUrl);
+        public static Task<string> EnsureFfprobeAsync(string? downloadUrl = null, string? baseDir = null)
+            => EnsureBinaryFromArchiveAsync("ffprobe.exe", Path.Combine("Binaries", "win-x64"), downloadUrl ?? DefaultFfprobeZipUrl, baseDir);
 
-        public static Task<string> EnsureMpvAsync(string downloadUrl = null)
-            => EnsureBinaryFromArchiveAsync("mpv.exe", Path.Combine("Binaries", "win-x64"), downloadUrl ?? DefaultMpvZipUrl);
+        public static Task<string> EnsureMpvAsync(string? downloadUrl = null, string? baseDir = null)
+            => EnsureBinaryFromArchiveAsync("mpv.exe", Path.Combine("Binaries", "win-x64"), downloadUrl ?? DefaultMpvZipUrl, baseDir);
 
-        private static async Task<string> EnsureBinaryFromArchiveAsync(string binaryName, string relativeTargetDir, string downloadUrl)
+        private static async Task<string> EnsureBinaryFromArchiveAsync(string binaryName, string relativeTargetDir, string downloadUrl, string? baseDir = null)
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                throw new PlatformNotSupportedException("This helper currently targets Windows builds. Add other platforms as needed.");
+                throw new PlatformNotSupportedException("This helper currently targets Windows builds.");
 
-            var baseDir = AppContext.BaseDirectory;
+            baseDir ??= AppContext.BaseDirectory;
             var targetDir = Path.Combine(baseDir, relativeTargetDir);
             Directory.CreateDirectory(targetDir);
 
             var targetPath = Path.Combine(targetDir, binaryName);
-            if (File.Exists(targetPath))
-                return targetPath;
+            if (File.Exists(targetPath)) return targetPath;
 
-            if (string.IsNullOrWhiteSpace(downloadUrl))
-                throw new ArgumentException("A download URL must be supplied when no default is available.", nameof(downloadUrl));
-
+            Console.WriteLine($"Downloading {binaryName} from {downloadUrl}...");
             using var http = new HttpClient();
+            // GitHub requires a User-Agent
+            http.DefaultRequestHeaders.Add("User-Agent", "GridPlayer-BinaryDownloader");
             using var response = await http.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -47,29 +46,37 @@ namespace GridPlayer.Services
                 using (var fs = File.Create(tmp))
                     await stream.CopyToAsync(fs).ConfigureAwait(false);
 
-                if (Path.GetExtension(tmp).Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    using var archive = ZipFile.OpenRead(tmp);
-                    var entry = archive.Entries.FirstOrDefault(e => e.Name.Equals(binaryName, StringComparison.OrdinalIgnoreCase))
-                                ?? archive.Entries.FirstOrDefault(e => e.FullName.EndsWith("/" + binaryName, StringComparison.OrdinalIgnoreCase) || e.FullName.EndsWith("\\" + binaryName, StringComparison.OrdinalIgnoreCase));
+                Console.WriteLine($"Extracting {binaryName} using native tar...");
 
-                    if (entry != null)
+                // Use 'tar' (bsdtar) which is built-in to modern Windows and handles .zip, .7z, etc.
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "tar.exe",
+                    Arguments = $"-xf \"{tmp}\" -C \"{targetDir}\" --strip-components 0",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardError = true
+                };
+
+                using var proc = System.Diagnostics.Process.Start(startInfo);
+                await proc!.WaitForExitAsync();
+
+                // Look for the binary in targetDir (it might be in a subfolder from tar extraction)
+                var found = Directory.GetFiles(targetDir, binaryName, SearchOption.AllDirectories).FirstOrDefault();
+                if (found != null)
+                {
+                    if (!found.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
                     {
-                        var destPath = Path.Combine(targetDir, binaryName);
-                        entry.ExtractToFile(destPath, overwrite: true);
-                        return destPath;
+                        File.Copy(found, targetPath, overwrite: true);
                     }
+                    return targetPath;
                 }
 
-                // fallback: assume download is a direct exe
-                var destExe = Path.Combine(targetDir, binaryName);
-                File.Copy(tmp, destExe, overwrite: true);
-                return destExe;
+                // Final fallback: copy the downloaded file directly if it's not an archive
+                File.Copy(tmp, targetPath, overwrite: true);
+                return targetPath;
             }
-            finally
-            {
-                try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
-            }
+            finally { try { if (File.Exists(tmp)) File.Delete(tmp); } catch { } }
         }
     }
 }
