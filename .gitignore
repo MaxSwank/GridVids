@@ -14,3 +14,5 @@ GridPlayer/Binaries/win-x64/mpv.com
 GridPlayer/download
 GridPlayer/Binaries/win-x64/doc/mpbindings.png
 GridPlayer/Binaries/win-x64/installer/mpv-icon.ico
+/Binaries/win-x64/Program.runtimeconfig.json
+/Binaries/win-x64/Program.deps.json
