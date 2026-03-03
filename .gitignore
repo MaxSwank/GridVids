@@ -1,6 +1,12 @@
-GridPlayer/obj
-GridPlayer/bin
-GridPlayer/.vs
-mpv.exe
-mpv.pdb
-ffprobe.exe
+/GridPlayer/obj
+/GridPlayer/bin
+/GridPlayer/.vs
+/GridPlayer/Binaries/win-x64/ffprobe.exe
+/GridPlayer/Binaries/win-x64/mpv.exe
+/GridPlayer/Binaries/win-x64/mpv.pdb
+[Bb]in/
+[Oo]bj/
+# Specific ignores just in case
+*.exe
+*.pdb
+*.dll
