@@ -76,6 +76,18 @@ GridVids is built on a robust, asynchronous architecture designed to handle doze
 
 ---
 
-## 📜 License
+## � Downloads
+
+Check out the [Releases](https://github.com/MaxSwank/GridVids/releases) page for the latest Windows installer.
+
+### 🛠️ Building the Installer
+If you are building from source and want to create the Windows installer:
+1. Install [Inno Setup 6+](https://jrsoftware.org/isdl.php).
+2. Run `dotnet publish -c Release -r win-x64 --self-contained true` in the root folder.
+3. Open `installer.iss` in Inno Setup and click **Compile**.
+
+---
+
+## �📜 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
