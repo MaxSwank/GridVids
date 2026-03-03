@@ -6,7 +6,7 @@
 #define AppPublisher "MaxSwank"
 #define AppURL "https://github.com/MaxSwank/GridVids"
 #define AppExeName "GridVids.exe"
-#define AppIconPath "GridVids\Assets\app-icon.ico"
+#define AppIconPath "GridPlayer\Assets\app-icon.ico"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -36,8 +36,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "GridVids\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "GridVids\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "GridPlayer\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "GridPlayer\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
