@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GridPlayer.ViewModels"
+        xmlns:controls="using:GridPlayer.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="GridPlayer.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="GridPlayer"
+        SystemDecorations="Full"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Width="1500">
+
+    <Design.DataContext>
+        <vm:MainViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <!-- Custom Title Bar -->
+        <Grid Grid.Row="0" Height="32" Background="#1a1a1a" IsVisible="{Binding IsTitleBarVisible}" ColumnDefinitions="*,Auto" Name="TitleBar">
+            <TextBlock Text="{Binding Title, RelativeSource={RelativeSource FindAncestor, AncestorType=Window}}"
+                       Foreground="#e0e0e0" VerticalAlignment="Center" Margin="12,0" FontSize="13" FontWeight="SemiBold"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Content="–" Width="46" VerticalAlignment="Stretch" Background="Transparent" Foreground="#ffffff" Name="BtnMinimize" BorderThickness="0"/>
+                <Button Content="☐" Width="46" VerticalAlignment="Stretch" Background="Transparent" Foreground="#ffffff" Name="BtnMaximize" BorderThickness="0"/>
+                <Button Content="✕" Width="46" VerticalAlignment="Stretch" Background="Transparent" Foreground="#ffffff" Name="BtnClose" BorderThickness="0"/>
+            </StackPanel>
+        </Grid>
+        <!-- Control Bar -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10" Margin="10" IsVisible="{Binding IsControlBarVisible}">
+			<Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder"/>
+			<TextBlock Text="{Binding VideoPath}" VerticalAlignment="Center" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
+			<Button Command="{Binding TogglePlaybackCommand}" Content="Play" Background="LightGreen"/>
+			
+            <TextBlock VerticalAlignment="Center" Text="Rows:"/>
+            <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" IsEnabled="{Binding AreManualControlsEnabled}"/>
+            <TextBlock VerticalAlignment="Center" Text="Cols:"/>
+            <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
+
+
+            <!-- Swap Controls -->
+            <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}" VerticalAlignment="Center"/>
+            
+            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="80" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
+            <TextBlock Text="-" VerticalAlignment="Center"/>
+            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
+
+            <TextBlock Text="Delay:" VerticalAlignment="Center"/>
+            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center"/>
+            
+            <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+			
+        </StackPanel>
+
+        <!-- Video Grid -->
+        <!-- Video Grid -->
+        <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding !IsCollageEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="IsVisible" Value="{Binding IsVisible}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderThickness="0" Margin="0">
+                        <!-- We need to bind the HandleReady event or property using Behaviors or CodeBehind.
+                             Since NativeEmbeddingControl isn't a standard MVVM friendly control effectively without behaviors,
+                             we might use a simple hack: bind a command or use OnAttachedToVisualTree.
+                             But here, let's just instantiate it.
+                             Wait, we need to extract the handle INTO the ViewModel.
+                        -->
+                        <controls:NativeEmbeddingControl 
+                            x:Name="Embedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Collage View -->
+        <ItemsControl Grid.Row="2" Name="CollageContainer" ItemsSource="{Binding CollageSlots}" IsVisible="{Binding IsCollageEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Black"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                    <!-- Add ZIndex if needed, or order in collection determines it -->
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderThickness="0" Margin="0" Background="Black">
+                        <controls:NativeEmbeddingControl 
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </Grid>
+</Window>
