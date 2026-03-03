@@ -1,6 +1,5 @@
 <p align="center">
   <img src="docs/logo.png" alt="GridVids Logo" width="200"/>
-  <img src="GridVids/Assets/app-icon.png" alt="GridVids App Icon" width="128"/>
 </p>
 
 # 🎬 GridVids
