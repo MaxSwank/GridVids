@@ -48,8 +48,8 @@
             <TextBlock Text="-" VerticalAlignment="Center"/>
             <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
 
-            <TextBlock Text="Delay:" VerticalAlignment="Center"/>
-            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center"/>
+            <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
+            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
             
             <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
