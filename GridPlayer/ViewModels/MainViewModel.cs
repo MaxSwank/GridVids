@@ -32,11 +32,13 @@ namespace GridVids.ViewModels
             // Load Settings
             var settings = _settingsService.LoadSettings();
             _isSwapEnabled = settings.IsSwapEnabled;
+            _isRandomStartEnabled = settings.IsRandomStartEnabled;
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
+            _playbackService.IsRandomStartEnabled = _isRandomStartEnabled;
 
             InitializeOptions();
             InitializeSwapTimer();
@@ -140,6 +142,7 @@ namespace GridVids.ViewModels
                 Columns = Columns,
                 VideoPath = VideoPath,
                 IsSwapEnabled = IsSwapEnabled,
+                IsRandomStartEnabled = IsRandomStartEnabled,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
                 SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay
@@ -688,6 +691,18 @@ namespace GridVids.ViewModels
             SaveSettings();
             if (value) _swapTimer?.Start();
             else _swapTimer?.Stop();
+        }
+
+        [ObservableProperty]
+        private bool _isRandomStartEnabled = true;
+
+        partial void OnIsRandomStartEnabledChanged(bool value)
+        {
+            SaveSettings();
+            if (_playbackService != null)
+            {
+                _playbackService.IsRandomStartEnabled = value;
+            }
         }
 
         public bool AreManualControlsEnabled => !IsSwapEnabled;

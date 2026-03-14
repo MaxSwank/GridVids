@@ -51,6 +51,8 @@
             <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
             <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
             
+            <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+
             <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 			

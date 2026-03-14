@@ -11,6 +11,7 @@ namespace GridVids.Services
     {
         private readonly ScriptOrchestrator _orchestrator;
         private readonly SemaphoreSlim _processLaunchSemaphore = new(5);
+        public bool IsRandomStartEnabled { get; set; } = true;
 
         public PlaybackService()
         {
@@ -64,7 +65,7 @@ namespace GridVids.Services
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled));
             }
             finally
             {

@@ -105,20 +105,23 @@ namespace GridVids.Services
             catch (Exception ex) { Debug.WriteLine($"Error launching script: {ex.Message}"); }
         }
 
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle)
+        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true)
         {
             double startTime = 0;
-            try
+            if (randomStart)
             {
-                double duration = GetVideoDuration(videoPath);
-                if (duration > 5)
+                try
                 {
-                    startTime = _rng.NextDouble() * (duration - 2.0);
+                    double duration = GetVideoDuration(videoPath);
+                    if (duration > 5)
+                    {
+                        startTime = _rng.NextDouble() * (duration - 2.0);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to determine start time: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Failed to determine start time: {ex.Message}");
+                }
             }
 
             string mpvPath = GetMpvBinaryPath();
