@@ -36,8 +36,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "GridPlayer\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "GridPlayer\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "GridPlayer\bin\Release\net8.0\win-x64\publish\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "GridPlayer\bin\Release\net8.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
