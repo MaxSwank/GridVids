@@ -12,6 +12,8 @@ namespace GridVids.Services
     {
         private string _baseDir;
         private readonly Random _rng = new Random();
+        private static readonly Dictionary<string, List<double>> _recentStartTimes = new();
+        private static readonly object _startTimeLock = new();
 
         public ScriptOrchestrator()
         {
@@ -115,7 +117,52 @@ namespace GridVids.Services
                     double duration = GetVideoDuration(videoPath);
                     if (duration > 5)
                     {
-                        startTime = _rng.NextDouble() * (duration - 2.0);
+                        lock (_startTimeLock)
+                        {
+                            if (!_recentStartTimes.ContainsKey(videoPath))
+                                _recentStartTimes[videoPath] = new List<double>();
+                                
+                            var recentTimes = _recentStartTimes[videoPath];
+                            
+                            double bestTime = _rng.NextDouble() * (duration - 2.0);
+                            double maxMinDistance = -1;
+                            
+                            for (int i = 0; i < 50; i++)
+                            {
+                                double candidate = _rng.NextDouble() * (duration - 2.0);
+                                double minDistance = double.MaxValue;
+                                foreach (var t in recentTimes)
+                                {
+                                    // Treat video duration as circular to maximize perceived separation over loops
+                                    double dist = Math.Min(Math.Abs(t - candidate), duration - Math.Abs(t - candidate));
+                                    if (dist < minDistance) minDistance = dist;
+                                }
+                                
+                                if (recentTimes.Count == 0)
+                                {
+                                    bestTime = candidate;
+                                    break;
+                                }
+                                
+                                if (minDistance > maxMinDistance)
+                                {
+                                    maxMinDistance = minDistance;
+                                    bestTime = candidate;
+                                }
+                                
+                                // Good enough spread found (30 seconds)
+                                if (maxMinDistance >= 30)
+                                {
+                                    break;
+                                }
+                            }
+                            
+                            startTime = bestTime;
+                            recentTimes.Add(startTime);
+                            
+                            // Keep history bounded securely to prevent memory leaks over time
+                            if (recentTimes.Count > 30) recentTimes.RemoveAt(0);
+                        }
                     }
                 }
                 catch (Exception ex)

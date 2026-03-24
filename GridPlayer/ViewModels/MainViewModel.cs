@@ -32,6 +32,7 @@ namespace GridVids.ViewModels
             // Load Settings
             var settings = _settingsService.LoadSettings();
             _isSwapEnabled = settings.IsSwapEnabled;
+            _isSingleVidEnabled = settings.IsSingleVidEnabled;
             _isRandomStartEnabled = settings.IsRandomStartEnabled;
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
@@ -142,6 +143,7 @@ namespace GridVids.ViewModels
                 Columns = Columns,
                 VideoPath = VideoPath,
                 IsSwapEnabled = IsSwapEnabled,
+                IsSingleVidEnabled = IsSingleVidEnabled,
                 IsRandomStartEnabled = IsRandomStartEnabled,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
@@ -628,7 +630,7 @@ namespace GridVids.ViewModels
             }
 
             // Select random videos for the slots
-            var selectedVideos = specificVideoList ?? await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count);
+            var selectedVideos = specificVideoList ?? await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count, null, IsSingleVidEnabled);
 
             // Phase 1: Start all new instances concurrently and update immediately
             IsVideoPlaying = true;
@@ -691,6 +693,18 @@ namespace GridVids.ViewModels
             SaveSettings();
             if (value) _swapTimer?.Start();
             else _swapTimer?.Stop();
+        }
+
+        [ObservableProperty]
+        private bool _isSingleVidEnabled;
+        partial void OnIsSingleVidEnabledChanged(bool value)
+        {
+            SaveSettings();
+            UpdateGrid();
+            if (!string.IsNullOrEmpty(VideoPath) && !_suppressAutoRun)
+            {
+                _ = ExecutePlayback();
+            }
         }
 
         [ObservableProperty]
@@ -827,7 +841,7 @@ namespace GridVids.ViewModels
                 // 1. Pick new videos (GetRandomVideos excludes currently assigned paths)
                 // This ensures we get fresh content not currently playing (visible or hidden)
                 var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
-                var newVideos = await _videoLibraryService.GetRandomVideosAsync(hiddenSlots.Count, excludedPaths);
+                var newVideos = await _videoLibraryService.GetRandomVideosAsync(hiddenSlots.Count, excludedPaths, IsSingleVidEnabled);
                 if (newVideos.Count == 0) return;
 
                 // 2. Start new instances (Delegated to PlaybackService)

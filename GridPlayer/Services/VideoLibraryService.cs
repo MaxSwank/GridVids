@@ -31,6 +31,7 @@ namespace GridVids.Services
                 {
                     var files = System.IO.Directory.GetFiles(folderPath, "*.mp4", System.IO.SearchOption.AllDirectories);
                     _cachedVideoFiles = files.ToList();
+                    _playedSingleVids.Clear();
                     Debug.WriteLine($"Cache refreshed: {_cachedVideoFiles.Count} videos found.");
                 }
                 catch (Exception ex)
@@ -45,7 +46,9 @@ namespace GridVids.Services
             });
         }
 
-        public async Task<List<string>> GetRandomVideosAsync(int count, HashSet<string>? excludedPaths = null)
+        private HashSet<string> _playedSingleVids = new();
+
+        public async Task<List<string>> GetRandomVideosAsync(int count, HashSet<string>? excludedPaths = null, bool isSingleVidMode = false)
         {
             await _cacheLock.WaitAsync();
             try
@@ -60,6 +63,27 @@ namespace GridVids.Services
                 return await Task.Run(() =>
                 {
                     var rng = new Random();
+
+                    if (isSingleVidMode)
+                    {
+                        var unplayedFiles = _cachedVideoFiles.Where(f => !_playedSingleVids.Contains(f) && !excludedPaths.Contains(f)).ToList();
+                        if (unplayedFiles.Count == 0)
+                        {
+                            _playedSingleVids.Clear();
+                            unplayedFiles = _cachedVideoFiles.Where(f => !excludedPaths.Contains(f)).ToList();
+                        }
+                        
+                        var selectedSingle = unplayedFiles.OrderBy(x => rng.Next()).FirstOrDefault();
+                        if (selectedSingle == null) selectedSingle = _cachedVideoFiles.FirstOrDefault();
+                        
+                        if (selectedSingle != null)
+                        {
+                            _playedSingleVids.Add(selectedSingle);
+                            return Enumerable.Repeat(selectedSingle, count).ToList();
+                        }
+                        return new List<string>();
+                    }
+
                     var availableFiles = _cachedVideoFiles.Where(f => !excludedPaths.Contains(f)).ToList();
 
                     // Fallback

@@ -55,6 +55,7 @@
 
             <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
             <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 			
         </StackPanel>
 
