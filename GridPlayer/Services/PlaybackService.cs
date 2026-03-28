@@ -29,7 +29,19 @@ namespace GridVids.Services
                 {
                     var slot = slotList[i];
                     var video = videos[i];
-                    tasks.Add(TransitionSlotAsync(slot, video));
+                    
+                    int totalInstances = 0;
+                    int instanceIndex = 0;
+                    for (int j = 0; j < videos.Count; j++)
+                    {
+                        if (videos[j] == video)
+                        {
+                            totalInstances++;
+                            if (j < i) instanceIndex++;
+                        }
+                    }
+                    
+                    tasks.Add(TransitionSlotAsync(slot, video, totalInstances, instanceIndex));
                 }
             }
 
@@ -55,7 +67,7 @@ namespace GridVids.Services
             }
         }
 
-        private async Task TransitionSlotAsync(IGridSlot slot, string videoPath)
+        private async Task TransitionSlotAsync(IGridSlot slot, string videoPath, int totalInstances = 1, int instanceIndex = 0)
         {
             await _processLaunchSemaphore.WaitAsync();
             Process? newProcess = null;
@@ -65,7 +77,7 @@ namespace GridVids.Services
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex));
             }
             finally
             {
