@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace GridVids.Services
 {
@@ -23,6 +24,23 @@ namespace GridVids.Services
             var tasks = new List<Task>();
             var slotList = new List<IGridSlot>(slots);
 
+            var videoInstanceCounts = new Dictionary<string, int>();
+            foreach (var video in videos)
+            {
+                if (videoInstanceCounts.ContainsKey(video))
+                    videoInstanceCounts[video]++;
+                else
+                    videoInstanceCounts[video] = 1;
+            }
+
+            var videoInstanceIndices = new Dictionary<string, Stack<int>>();
+            var rng = new Random();
+            foreach (var kvp in videoInstanceCounts)
+            {
+                var indices = Enumerable.Range(0, kvp.Value).OrderBy(x => rng.Next()).ToList();
+                videoInstanceIndices[kvp.Key] = new Stack<int>(indices);
+            }
+
             for (int i = 0; i < slotList.Count; i++)
             {
                 if (i < videos.Count)
@@ -30,16 +48,8 @@ namespace GridVids.Services
                     var slot = slotList[i];
                     var video = videos[i];
                     
-                    int totalInstances = 0;
-                    int instanceIndex = 0;
-                    for (int j = 0; j < videos.Count; j++)
-                    {
-                        if (videos[j] == video)
-                        {
-                            totalInstances++;
-                            if (j < i) instanceIndex++;
-                        }
-                    }
+                    int totalInstances = videoInstanceCounts[video];
+                    int instanceIndex = videoInstanceIndices[video].Pop();
                     
                     tasks.Add(TransitionSlotAsync(slot, video, totalInstances, instanceIndex));
                 }

@@ -85,6 +85,9 @@ namespace GridVids.Controls
         [DllImport("user32.dll")]
         public static extern ushort RegisterClassEx(ref WNDCLASSEX lpwc);
 
+        [DllImport("user32.dll")]
+        public static extern IntPtr LoadCursor(IntPtr hInstance, int lpCursorName);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct WNDCLASSEX
         {
@@ -140,6 +143,7 @@ namespace GridVids.Controls
                 style = 0x00000003, // CS_HREDRAW | CS_VREDRAW
                 lpfnWndProc = Marshal.GetFunctionPointerForDelegate(_wndProcDelegate),
                 hInstance = GetModuleHandle(null),
+                hCursor = LoadCursor(IntPtr.Zero, 32512), // IDC_ARROW
                 hbrBackground = IntPtr.Zero, // No background, let mpv draw
                 lpszClassName = "GridVidsHost"
             };
@@ -148,8 +152,16 @@ namespace GridVids.Controls
             _classRegistered = true;
         }
 
+        public static event Action<IntPtr>? OnNativeClick;
+
         private static IntPtr CustomWndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         {
+            // 0x0201 = WM_LBUTTONDOWN
+            // 0x0210 = WM_PARENTNOTIFY (fires when child window is clicked, lower word of wParam is event)
+            if (msg == 0x0201 || (msg == 0x0210 && (wParam.ToInt32() & 0xFFFF) == 0x0201))
+            {
+                OnNativeClick?.Invoke(hWnd);
+            }
             return DefWindowProc(hWnd, msg, wParam, lParam);
         }
     }

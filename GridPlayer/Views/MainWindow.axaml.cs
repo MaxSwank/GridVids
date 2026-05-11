@@ -61,11 +61,10 @@ public partial class MainWindow : Window
             }
         };
 
-
-        // Polling Timer for Auto-Hide
+        // Polling Timer for Auto-Hide and Clicks
         _pollingTimer = new Avalonia.Threading.DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(100)
+            Interval = TimeSpan.FromMilliseconds(30)
         };
         _pollingTimer.Tick += PollingTimer_Tick;
         _pollingTimer.Start();
@@ -82,52 +81,28 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm) return;
 
-        // 0. Check Auto-Hide Enabled
-        if (!vm.IsAutoHideEnabled)
-        {
-            // Ensure visible if disabled
-            if (!vm.IsControlBarVisible) vm.IsControlBarVisible = true;
-            if (!vm.IsTitleBarVisible) vm.IsTitleBarVisible = true;
-            return;
-        }
-
-        // 1. Get Global Cursor Position
         if (GetCursorPos(out POINT lpPoint))
         {
             var screenPoint = new PixelPoint(lpPoint.X, lpPoint.Y);
             var clientPoint = this.PointToClient(screenPoint);
 
-            // 2. Check if Mouse is Inside Window (including Title Bar area)
-            // We expand the bounds to capture the title bar (negative Y) and borders.
+            // 1. Movement detection for Auto-Hide
             bool isInside = clientPoint.X >= -10 &&
                            clientPoint.Y >= -60 &&
                            clientPoint.X < this.Bounds.Width + 10 &&
                            clientPoint.Y < this.Bounds.Height + 10;
 
-            // 3. Check for Movement
             bool moved = Math.Abs(clientPoint.X - _lastMousePosition.X) > 2 ||
-                         Math.Abs(clientPoint.Y - _lastMousePosition.Y) > 2;
+                          Math.Abs(clientPoint.Y - _lastMousePosition.Y) > 2;
 
-            // 3. Update State
-            // Always update last known position so we can detect movement
             if (moved)
             {
                 _lastMousePosition = clientPoint;
-
-                // If we are OUTSIDE, movement shouldn't keep the bar awake.
                 if (isInside)
                 {
                     _lastMoveTime = DateTime.Now;
-
-                    // 3. Check for Activity vs Last State
-                    // If moved recently (CurrentTime - LastMoveTime < 0.1s implies movement detected), Show UI
-                    // Actually we update _lastMoveTime in step 1.
-                    // We just check if we need to UN-HIDE
                     if (!vm.IsControlBarVisible || !vm.IsTitleBarVisible)
                     {
-                        // If we just moved (idle ~= 0), show it.
-                        // But parsing "idleSeconds" below is safer.
-                        // Let's rely on the detector: if mouse moved, _lastMoveTime ≈ Now.
                         if ((DateTime.Now - _lastMoveTime).TotalSeconds < 0.5)
                         {
                             vm.IsControlBarVisible = true;
@@ -137,20 +112,60 @@ public partial class MainWindow : Window
                 }
             }
 
-            // 4. Determine Visibility State
-            // We use a single unified check. 
-            // If (Now - LastInsideMoveTime) > 2s, we hide.
-            // This handles both "Stationary Inside" and "Moved Outside" cases.
+            // 2. Metadata Hover Logic (3 second delay)
+            IntPtr hoveredHwnd = WindowFromPoint(lpPoint);
+            VideoSlotViewModel? hoveredSlot = null;
 
-            var idleSeconds = double.Parse((DateTime.Now - _lastMoveTime).TotalSeconds.ToString());
-
-            if (idleSeconds > InactivityThresholdSeconds)
+            if (hoveredHwnd != IntPtr.Zero)
             {
-                if (vm.IsControlBarVisible || vm.IsTitleBarVisible)
+                IntPtr current = hoveredHwnd;
+                while (current != IntPtr.Zero)
+                {
+                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).FirstOrDefault(s => s.WindowHandle == current);
+                    if (hoveredSlot != null) break;
+                    
+                    // Break if we reach the main window handle to avoid climbing too high
+                    if (current == this.TryGetPlatformHandle()?.Handle) break;
+
+                    current = GetParent(current);
+                }
+            }
+
+            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots))
+            {
+                if (slot == hoveredSlot)
+                {
+                    if (!slot.IsHovered)
+                    {
+                        slot.IsHovered = true;
+                        slot.HoverStartTime = DateTime.Now;
+                    }
+                    else if (!slot.ShowMetadataOverlay && (DateTime.Now - slot.HoverStartTime).TotalSeconds >= 0.5)
+                    {
+                        slot.UpdateOverlay(true);
+                    }
+                }
+                else if (slot.IsHovered)
+                {
+                    slot.IsHovered = false;
+                    slot.UpdateOverlay(false);
+                }
+            }
+
+            // 3. Auto-Hide
+            if (vm.IsAutoHideEnabled)
+            {
+                var idleSeconds = (DateTime.Now - _lastMoveTime).TotalSeconds;
+                if (idleSeconds > InactivityThresholdSeconds)
                 {
                     vm.IsControlBarVisible = false;
                     vm.IsTitleBarVisible = false;
                 }
+            }
+            else
+            {
+                if (!vm.IsControlBarVisible) vm.IsControlBarVisible = true;
+                if (!vm.IsTitleBarVisible) vm.IsTitleBarVisible = true;
             }
         }
     }
@@ -158,6 +173,12 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr WindowFromPoint(POINT point);
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetParent(IntPtr hWnd);
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT

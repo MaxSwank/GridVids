@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace GridVids.ViewModels
 {
@@ -21,6 +23,21 @@ namespace GridVids.ViewModels
 
         public System.Diagnostics.Process? CurrentProcess { get; set; }
         public string CurrentVideoPath { get; set; } = string.Empty;
+        
+        public bool IsHovered { get; set; }
+        public DateTime HoverStartTime { get; set; }
+
+        [ObservableProperty]
+        private string _fileName = string.Empty;
+
+        [ObservableProperty]
+        private string _frameRate = string.Empty;
+
+        [ObservableProperty]
+        private string _bitRate = string.Empty;
+
+        [ObservableProperty]
+        private bool _showMetadataOverlay;
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(EffectiveX))]
@@ -83,9 +100,62 @@ namespace GridVids.ViewModels
             {
                 CurrentProcess = newProcess;
                 CurrentVideoPath = newVideoPath;
+                FileName = System.IO.Path.GetFileName(newVideoPath);
+                FrameRate = string.Empty;
+                BitRate = string.Empty;
             });
 
+            if (!string.IsNullOrEmpty(newVideoPath))
+            {
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    var orchestrator = new GridVids.Services.ScriptOrchestrator();
+                    var meta = orchestrator.GetVideoMetadata(newVideoPath);
+                    Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        if (CurrentVideoPath == newVideoPath)
+                        {
+                            FrameRate = meta.FrameRate;
+                            BitRate = meta.BitRate;
+                        }
+                    });
+                });
+            }
+
             return old;
+        }
+
+        public void UpdateOverlay(bool show)
+        {
+            if (ShowMetadataOverlay == show) return;
+            ShowMetadataOverlay = show;
+
+            if (CurrentProcess != null && !CurrentProcess.HasExited)
+            {
+                try
+                {
+                    if (show)
+                    {
+                        // Styling for mpv OSD using ASS tags: 
+                        // an7: Top-Left, fs18: Font size, bord1: border, b1: Bold
+                        // We use double backslashes for the ASS tags in the string.
+                        string safeName = FileName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                        string text = $"File: {safeName}\\nFPS: {FrameRate}\\nBitrate: {BitRate}";
+                        string assText = "{\\\\an7}{\\\\fs18}{\\\\bord1}{\\\\shad1}{\\\\b1}" + text;
+                        CurrentProcess.StandardInput.WriteLine($"show-text \"{assText}\" 1000000");
+                    }
+                    else
+                    {
+                        CurrentProcess.StandardInput.WriteLine("show-text \"\" 1");
+                    }
+                }
+                catch { }
+            }
+        }
+
+        public void ToggleMetadataOverlay()
+        {
+            UpdateOverlay(!ShowMetadataOverlay);
         }
     }
 }

@@ -167,7 +167,8 @@ namespace GridVids.Services
                 FileName = mpvPath,
                 Arguments = string.Join(" ", args),
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardInput = true
             };
 
             Debug.WriteLine($"Starting MPV: {psi.FileName} {psi.Arguments}");
@@ -214,6 +215,71 @@ namespace GridVids.Services
                 return duration;
             }
             return 0;
+        }
+
+        public (string FrameRate, string BitRate) GetVideoMetadata(string videoPath)
+        {
+            string mpvPath = GetMpvBinaryPath();
+            string? dir = Path.GetDirectoryName(mpvPath);
+            if (dir == null) return ("", "");
+
+            string ffprobeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ffprobe.exe" : "ffprobe";
+            string ffprobePath = Path.Combine(dir, ffprobeName);
+
+            if (!File.Exists(ffprobePath)) return ("", "");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffprobePath,
+                Arguments = $"-v error -select_streams v:0 -show_entries stream=r_frame_rate -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 \"{videoPath}\"",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+
+            try
+            {
+                using var proc = Process.Start(psi);
+                if (proc == null) return ("", "");
+
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                string frameRate = "";
+                string bitRate = "";
+
+                if (lines.Length > 0)
+                {
+                    string[] frParts = lines[0].Split('/');
+                    if (frParts.Length == 2 && double.TryParse(frParts[0], out double num) && double.TryParse(frParts[1], out double den) && den != 0)
+                    {
+                        frameRate = Math.Round(num / den, 2).ToString() + " fps";
+                    }
+                    else
+                    {
+                        frameRate = lines[0] + " fps";
+                    }
+                }
+
+                if (lines.Length > 1)
+                {
+                    if (double.TryParse(lines[1], out double br))
+                    {
+                        bitRate = Math.Round(br / 1000.0) + " kbps";
+                    }
+                    else
+                    {
+                        bitRate = lines[1] + " kbps";
+                    }
+                }
+
+                return (frameRate, bitRate);
+            }
+            catch
+            {
+                return ("", "");
+            }
         }
     }
 }

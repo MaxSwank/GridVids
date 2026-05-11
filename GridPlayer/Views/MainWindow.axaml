@@ -74,18 +74,21 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border BorderThickness="0" Margin="0">
-                        <!-- We need to bind the HandleReady event or property using Behaviors or CodeBehind.
-                             Since NativeEmbeddingControl isn't a standard MVVM friendly control effectively without behaviors,
-                             we might use a simple hack: bind a command or use OnAttachedToVisualTree.
-                             But here, let's just instantiate it.
-                             Wait, we need to extract the handle INTO the ViewModel.
-                        -->
+                    <Grid Background="Transparent" Margin="0">
                         <controls:NativeEmbeddingControl 
                             x:Name="Embedder"
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                    </Border>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #Embedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -109,11 +112,21 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border BorderThickness="0" Margin="0" Background="Black">
+                    <Grid Background="Black" Margin="0">
                         <controls:NativeEmbeddingControl 
+                            x:Name="CollageEmbedder"
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                    </Border>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #CollageEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
