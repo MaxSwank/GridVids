@@ -26,6 +26,7 @@ namespace GridVids.ViewModels
         
         public bool IsHovered { get; set; }
         public DateTime HoverStartTime { get; set; }
+        public bool HasTriggeredHover { get; set; }
 
         [ObservableProperty]
         private string _fileName = string.Empty;
@@ -103,6 +104,7 @@ namespace GridVids.ViewModels
                 FileName = System.IO.Path.GetFileName(newVideoPath);
                 FrameRate = string.Empty;
                 BitRate = string.Empty;
+                HasTriggeredHover = false;
             });
 
             if (!string.IsNullOrEmpty(newVideoPath))
@@ -128,6 +130,13 @@ namespace GridVids.ViewModels
         public void UpdateOverlay(bool show)
         {
             if (ShowMetadataOverlay == show) return;
+
+            if (show)
+            {
+                if (HasTriggeredHover) return;
+                HasTriggeredHover = true;
+            }
+
             ShowMetadataOverlay = show;
 
             if (CurrentProcess != null && !CurrentProcess.HasExited)

@@ -137,12 +137,19 @@ public partial class MainWindow : Window
                 {
                     if (!slot.IsHovered)
                     {
-                        slot.IsHovered = true;
-                        slot.HoverStartTime = DateTime.Now;
+                        if (moved)
+                        {
+                            slot.IsHovered = true;
+                            slot.HoverStartTime = DateTime.Now;
+                        }
                     }
                     else if (!slot.ShowMetadataOverlay && (DateTime.Now - slot.HoverStartTime).TotalSeconds >= 0.5)
                     {
                         slot.UpdateOverlay(true);
+                    }
+                    else if (slot.ShowMetadataOverlay && (DateTime.Now - slot.HoverStartTime).TotalSeconds >= 5.5)
+                    {
+                        slot.UpdateOverlay(false);
                     }
                 }
                 else if (slot.IsHovered)
