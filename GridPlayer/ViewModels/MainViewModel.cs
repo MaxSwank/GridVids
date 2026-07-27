@@ -36,6 +36,7 @@ namespace GridVids.ViewModels
             _isRandomStartEnabled = settings.IsRandomStartEnabled;
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
+            _selectedRandomize = !string.IsNullOrEmpty(settings.SelectedRandomize) ? settings.SelectedRandomize : "None";
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
@@ -43,6 +44,7 @@ namespace GridVids.ViewModels
 
             InitializeOptions();
             InitializeSwapTimer();
+            InitializeRandomizeTimer();
 
             _rows = settings.Rows > 0 ? settings.Rows : 2;
             _columns = settings.Columns > 0 ? settings.Columns : 2;
@@ -100,6 +102,9 @@ namespace GridVids.ViewModels
                 if (c1 > 0 && c2 > 0) total = c1 + c2;
             }
 
+            _staircaseIndex = 0;
+            _randomSlotQueue.Clear();
+
             EnsureSlotCount(total);
             UpdateVisibility();
         }
@@ -147,7 +152,8 @@ namespace GridVids.ViewModels
                 IsRandomStartEnabled = IsRandomStartEnabled,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
-                SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay
+                SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
+                SelectedRandomize = SelectedRandomize
             };
             _settingsService.SaveSettings(settings);
         }
@@ -646,6 +652,8 @@ namespace GridVids.ViewModels
                 firstRun = false;
                 SelectedDelay = _restoredDelay;
             }
+
+            _ = PreloadNextSlotAsync();
         }
 
 
@@ -676,23 +684,40 @@ namespace GridVids.ViewModels
 
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<int> DelayOptions { get; } = new();
+        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random" };
 
         private void InitializeOptions()
         {
             for (int c = 2; c <= 8; c++) GridSizeOptions.Add($"2x{c}");
             for (int c = 3; c <= 8; c++) GridSizeOptions.Add($"3x{c}");
             for (int c = 4; c <= 8; c++) GridSizeOptions.Add($"4x{c}");
+
+            for (int d = 1; d <= 4; d++) DelayOptions.Add(d);
             for (int d = 5; d <= 200; d += 5) DelayOptions.Add(d);
         }
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
         private bool _isSwapEnabled;
         partial void OnIsSwapEnabledChanged(bool value)
         {
             SaveSettings();
             if (value) _swapTimer?.Start();
             else _swapTimer?.Stop();
+            UpdateRandomizeTimer();
+        }
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
+        private string _selectedRandomize = "None";
+        partial void OnSelectedRandomizeChanged(string value)
+        {
+            _staircaseIndex = 0;
+            _randomSlotQueue.Clear();
+            ClearPreloadedSlot();
+            SaveSettings();
+            UpdateRandomizeTimer();
         }
 
         [ObservableProperty]
@@ -720,6 +745,7 @@ namespace GridVids.ViewModels
         }
 
         public bool AreManualControlsEnabled => !IsSwapEnabled;
+        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None");
 
         [ObservableProperty]
         private string _selectedGrid1 = "2x2";
@@ -736,12 +762,114 @@ namespace GridVids.ViewModels
             if (firstRun && value > 0) _restoredDelay = value; // User intervention during startup
 
             if (_swapTimer != null) _swapTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, value));
+            if (_randomizeTimer != null) _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, value));
             SaveSettings();
         }
 
 
         private Avalonia.Threading.DispatcherTimer? _swapTimer;
+        private Avalonia.Threading.DispatcherTimer? _randomizeTimer;
+        private Queue<int> _randomSlotQueue = new();
+        private int _staircaseIndex = 0;
         private bool _isShowingGrid1 = true;
+
+        private class PreloadedSlotData
+        {
+            public VideoSlotViewModel Slot { get; set; } = null!;
+            public string VideoPath { get; set; } = string.Empty;
+            public System.Diagnostics.Process? Process { get; set; }
+        }
+
+        private PreloadedSlotData? _nextPreloadedSlot;
+        private bool _isPreloading = false;
+
+        private void ClearPreloadedSlot()
+        {
+            if (_nextPreloadedSlot?.Process != null && !_nextPreloadedSlot.Process.HasExited)
+            {
+                try { _nextPreloadedSlot.Process.Kill(); } catch { }
+                _nextPreloadedSlot.Process.Dispose();
+            }
+            _nextPreloadedSlot = null;
+        }
+
+        private async Task PreloadNextSlotAsync()
+        {
+            if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            if (string.IsNullOrWhiteSpace(VideoPath)) return;
+
+            _isPreloading = true;
+            try
+            {
+                VideoSlotViewModel? nextSlot = null;
+
+                if (SelectedRandomize == "Staircase")
+                {
+                    var scIndices = GetStaircaseSlotIndices(Rows, Columns);
+                    if (scIndices.Count == 0) return;
+
+                    int peekIndex = _staircaseIndex % scIndices.Count;
+                    int targetSlotIndex = scIndices[peekIndex];
+                    if (targetSlotIndex < VideoSlots.Count)
+                    {
+                        nextSlot = VideoSlots[targetSlotIndex];
+                    }
+                }
+                else if (SelectedRandomize == "Random")
+                {
+                    if (_randomSlotQueue.Count == 0)
+                    {
+                        var indices = Enumerable.Range(0, VideoSlots.Count).OrderBy(_ => _rnd.Next()).ToList();
+                        foreach (var idx in indices) _randomSlotQueue.Enqueue(idx);
+                    }
+
+                    if (_randomSlotQueue.Count > 0)
+                    {
+                        int targetSlotIndex = _randomSlotQueue.Peek();
+                        if (targetSlotIndex < VideoSlots.Count)
+                        {
+                            nextSlot = VideoSlots[targetSlotIndex];
+                        }
+                    }
+                }
+
+                if (nextSlot == null) return;
+
+                if (_nextPreloadedSlot != null && _nextPreloadedSlot.Slot == nextSlot && _nextPreloadedSlot.Process != null && !_nextPreloadedSlot.Process.HasExited)
+                {
+                    return; // Already preloaded for this slot
+                }
+
+                ClearPreloadedSlot();
+
+                var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
+                if (newVideos.Count == 0) return;
+
+                string videoPath = newVideos[0];
+                if (nextSlot.WindowHandle == IntPtr.Zero) return;
+
+                var proc = await _playbackService.PreloadMpvAsync(nextSlot, videoPath);
+
+                if (proc != null)
+                {
+                    _nextPreloadedSlot = new PreloadedSlotData
+                    {
+                        Slot = nextSlot,
+                        VideoPath = videoPath,
+                        Process = proc
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error preloading slot: {ex.Message}");
+            }
+            finally
+            {
+                _isPreloading = false;
+            }
+        }
 
         private void InitializeSwapTimer()
         {
@@ -751,6 +879,123 @@ namespace GridVids.ViewModels
             };
             _swapTimer.Tick += SwapTimer_Tick;
             if (IsSwapEnabled) _swapTimer.Start();
+        }
+
+        private void InitializeRandomizeTimer()
+        {
+            _randomizeTimer = new Avalonia.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(Math.Max(1, SelectedDelay))
+            };
+            _randomizeTimer.Tick += RandomizeTimer_Tick;
+            UpdateRandomizeTimer();
+        }
+
+        private void UpdateRandomizeTimer()
+        {
+            if (_randomizeTimer == null) return;
+
+            if (!IsSwapEnabled && SelectedRandomize != "None")
+            {
+                _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, SelectedDelay));
+                if (!_randomizeTimer.IsEnabled) _randomizeTimer.Start();
+                _ = PreloadNextSlotAsync();
+            }
+            else
+            {
+                _randomizeTimer.Stop();
+                ClearPreloadedSlot();
+            }
+        }
+
+        private async void RandomizeTimer_Tick(object? sender, EventArgs e)
+        {
+            if (IsSwapEnabled || SelectedRandomize == "None" || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            if (string.IsNullOrWhiteSpace(VideoPath)) return;
+
+            VideoSlotViewModel? targetSlot = null;
+
+            if (SelectedRandomize == "Staircase")
+            {
+                var scIndices = GetStaircaseSlotIndices(Rows, Columns);
+                if (scIndices.Count == 0) return;
+
+                if (_staircaseIndex >= scIndices.Count) _staircaseIndex = 0;
+                int targetSlotIndex = scIndices[_staircaseIndex];
+                _staircaseIndex = (_staircaseIndex + 1) % scIndices.Count;
+
+                if (targetSlotIndex < VideoSlots.Count)
+                {
+                    targetSlot = VideoSlots[targetSlotIndex];
+                }
+            }
+            else if (SelectedRandomize == "Random")
+            {
+                if (_randomSlotQueue.Count == 0)
+                {
+                    var indices = Enumerable.Range(0, VideoSlots.Count).OrderBy(_ => _rnd.Next()).ToList();
+                    foreach (var idx in indices) _randomSlotQueue.Enqueue(idx);
+                }
+
+                if (_randomSlotQueue.Count > 0)
+                {
+                    int targetSlotIndex = _randomSlotQueue.Dequeue();
+                    if (targetSlotIndex < VideoSlots.Count)
+                    {
+                        targetSlot = VideoSlots[targetSlotIndex];
+                    }
+                }
+            }
+
+            if (targetSlot != null)
+            {
+                if (_nextPreloadedSlot != null && _nextPreloadedSlot.Slot == targetSlot && _nextPreloadedSlot.Process != null && !_nextPreloadedSlot.Process.HasExited)
+                {
+                    var preloaded = _nextPreloadedSlot;
+                    _nextPreloadedSlot = null;
+                    _playbackService.SwapPreloadedSlot(preloaded.Slot, preloaded.Process, preloaded.VideoPath);
+                }
+                else
+                {
+                    ClearPreloadedSlot();
+                    var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                    var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
+                    if (newVideos.Count > 0)
+                    {
+                        await _playbackService.PlayAsync(new[] { targetSlot }, newVideos);
+                    }
+                }
+            }
+
+            _ = PreloadNextSlotAsync();
+        }
+
+        private List<int> GetStaircaseSlotIndices(int rows, int cols)
+        {
+            var list = new List<int>();
+            if (rows <= 0 || cols <= 0) return list;
+
+            for (int r = 0; r < rows; r++)
+            {
+                if (r % 2 == 0)
+                {
+                    // Even row: Left to Right
+                    for (int c = 0; c < cols; c++)
+                    {
+                        list.Add(r * cols + c);
+                    }
+                }
+                else
+                {
+                    // Odd row: Right to Left
+                    for (int c = cols - 1; c >= 0; c--)
+                    {
+                        list.Add(r * cols + c);
+                    }
+                }
+            }
+
+            return list;
         }
 
         private async void SwapTimer_Tick(object? sender, EventArgs e)

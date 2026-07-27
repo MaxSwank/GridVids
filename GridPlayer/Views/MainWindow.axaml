@@ -40,6 +40,9 @@
             <TextBlock VerticalAlignment="Center" Text="Cols:"/>
             <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
+            <!-- Randomize Controls -->
+            <TextBlock VerticalAlignment="Center" Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
+            <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="100" VerticalAlignment="Center" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
             <!-- Swap Controls -->
             <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}" VerticalAlignment="Center"/>
@@ -48,8 +51,8 @@
             <TextBlock Text="-" VerticalAlignment="Center"/>
             <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
 
-            <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
-            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center" IsEnabled="{Binding IsSwapEnabled}"/>
+            <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}"/>
+            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}"/>
             
             <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 

@@ -77,6 +77,33 @@ namespace GridVids.Services
             }
         }
 
+        public async Task<Process?> PreloadMpvAsync(IGridSlot slot, string videoPath)
+        {
+            await _processLaunchSemaphore.WaitAsync();
+            try
+            {
+                var handle = slot.WindowHandle;
+                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0));
+            }
+            finally
+            {
+                _processLaunchSemaphore.Release();
+            }
+        }
+
+        public void SwapPreloadedSlot(IGridSlot slot, Process newProcess, string videoPath)
+        {
+            var oldProcess = slot.UpdateProcess(newProcess, videoPath);
+            if (oldProcess != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(200);
+                    CleanupProcess(oldProcess);
+                });
+            }
+        }
+
         private async Task TransitionSlotAsync(IGridSlot slot, string videoPath, int totalInstances = 1, int instanceIndex = 0)
         {
             await _processLaunchSemaphore.WaitAsync();
@@ -97,10 +124,14 @@ namespace GridVids.Services
             // Update UI/Slot on the original context (UI thread)
             var oldProcess = slot.UpdateProcess(newProcess, videoPath);
 
-            // Cleanup old process on background thread
+            // Cleanup old process on background thread with smooth grace period
             if (oldProcess != null)
             {
-                _ = Task.Run(() => CleanupProcess(oldProcess));
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(200);
+                    CleanupProcess(oldProcess);
+                });
             }
         }
 
