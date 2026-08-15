@@ -54,6 +54,13 @@
             <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}"/>
             <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}"/>
             
+            <CheckBox Content="Mute" IsChecked="{Binding IsMuted}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" IsVisible="{Binding !IsMuted}">
+                <TextBlock Text="Vol:" VerticalAlignment="Center"/>
+                <Slider Value="{Binding Volume}" Minimum="0" Maximum="100" Width="90" VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Width="35" VerticalAlignment="Center" FontSize="11"/>
+            </StackPanel>
+
             <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 
             <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>

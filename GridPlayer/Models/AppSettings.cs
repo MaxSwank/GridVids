@@ -12,5 +12,7 @@ namespace GridVids.Models
         public string SelectedGrid2 { get; set; } = "3x3";
         public int SelectedDelay { get; set; } = 10;
         public string SelectedRandomize { get; set; } = "None";
+        public bool IsMuted { get; set; } = true;
+        public int Volume { get; set; } = 10;
     }
 }

@@ -13,10 +13,38 @@ namespace GridVids.Services
         private readonly ScriptOrchestrator _orchestrator;
         private readonly SemaphoreSlim _processLaunchSemaphore = new(5);
         public bool IsRandomStartEnabled { get; set; } = true;
+        public bool IsMuted { get; set; } = true;
+        public int Volume { get; set; } = 10;
 
         public PlaybackService()
         {
             _orchestrator = new ScriptOrchestrator();
+        }
+
+        public void UpdateVolume(IEnumerable<IGridSlot> slots, bool isMuted, int volume)
+        {
+            IsMuted = isMuted;
+            Volume = volume;
+
+            foreach (var slot in slots)
+            {
+                if (slot.CurrentProcess != null && !slot.CurrentProcess.HasExited)
+                {
+                    try
+                    {
+                        if (isMuted)
+                        {
+                            slot.CurrentProcess.StandardInput.WriteLine("set mute yes");
+                        }
+                        else
+                        {
+                            slot.CurrentProcess.StandardInput.WriteLine("set mute no");
+                            slot.CurrentProcess.StandardInput.WriteLine($"set volume {Math.Clamp(volume, 0, 100)}");
+                        }
+                    }
+                    catch { }
+                }
+            }
         }
 
         public async Task PlayAsync(IEnumerable<IGridSlot> slots, List<string> videos)
@@ -83,7 +111,7 @@ namespace GridVids.Services
             try
             {
                 var handle = slot.WindowHandle;
-                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0));
+                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0, IsMuted, Volume));
             }
             finally
             {
@@ -114,7 +142,7 @@ namespace GridVids.Services
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex, IsMuted, Volume));
             }
             finally
             {

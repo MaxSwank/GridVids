@@ -105,7 +105,7 @@ namespace GridVids.Services
             catch (Exception ex) { Debug.WriteLine($"Error launching script: {ex.Message}"); }
         }
 
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0)
+        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0, bool isMuted = true, int volume = 10)
         {
             double startTime = 0;
             if (randomStart)
@@ -141,7 +141,6 @@ namespace GridVids.Services
                 $"--start={startTime:F2}",
                 $"\"{videoPath}\"",
                 "--no-border",
-                "--no-audio",
                 "--keep-open=yes",
                 "--loop-file=inf",
                 "--hwdec=auto",
@@ -157,9 +156,19 @@ namespace GridVids.Services
                 "--no-input-default-bindings",
                 "--no-input-cursor",
                 "--no-osc",
-                "--input-vo-keyboard=no",
-                "--audio=no"
+                "--input-vo-keyboard=no"
             };
+
+            if (isMuted)
+            {
+                args.Add("--mute=yes");
+                args.Add("--volume=0");
+            }
+            else
+            {
+                args.Add("--mute=no");
+                args.Add($"--volume={Math.Clamp(volume, 0, 100)}");
+            }
 
 
             var psi = new ProcessStartInfo

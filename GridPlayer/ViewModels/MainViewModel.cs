@@ -34,6 +34,8 @@ namespace GridVids.ViewModels
             _isSwapEnabled = settings.IsSwapEnabled;
             _isSingleVidEnabled = settings.IsSingleVidEnabled;
             _isRandomStartEnabled = settings.IsRandomStartEnabled;
+            _isMuted = settings.IsMuted;
+            _volume = settings.Volume > 0 ? settings.Volume : 10;
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
             _selectedRandomize = !string.IsNullOrEmpty(settings.SelectedRandomize) ? settings.SelectedRandomize : "None";
@@ -41,6 +43,8 @@ namespace GridVids.ViewModels
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
             _playbackService.IsRandomStartEnabled = _isRandomStartEnabled;
+            _playbackService.IsMuted = _isMuted;
+            _playbackService.Volume = _volume;
 
             InitializeOptions();
             InitializeSwapTimer();
@@ -150,6 +154,8 @@ namespace GridVids.ViewModels
                 IsSwapEnabled = IsSwapEnabled,
                 IsSingleVidEnabled = IsSingleVidEnabled,
                 IsRandomStartEnabled = IsRandomStartEnabled,
+                IsMuted = IsMuted,
+                Volume = Volume,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
                 SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
@@ -741,6 +747,32 @@ namespace GridVids.ViewModels
             if (_playbackService != null)
             {
                 _playbackService.IsRandomStartEnabled = value;
+            }
+        }
+
+        [ObservableProperty]
+        private bool _isMuted = true;
+
+        partial void OnIsMutedChanged(bool value)
+        {
+            SaveSettings();
+            if (_playbackService != null)
+            {
+                var allSlots = VideoSlots.Concat(CollageSlots);
+                _playbackService.UpdateVolume(allSlots, value, Volume);
+            }
+        }
+
+        [ObservableProperty]
+        private int _volume = 10;
+
+        partial void OnVolumeChanged(int value)
+        {
+            SaveSettings();
+            if (_playbackService != null)
+            {
+                var allSlots = VideoSlots.Concat(CollageSlots);
+                _playbackService.UpdateVolume(allSlots, IsMuted, value);
             }
         }
 
