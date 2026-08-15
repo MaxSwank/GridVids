@@ -684,7 +684,7 @@ namespace GridVids.ViewModels
 
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<int> DelayOptions { get; } = new();
-        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random" };
+        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random", "Randomize Multiple" };
 
         private void InitializeOptions()
         {
@@ -815,7 +815,7 @@ namespace GridVids.ViewModels
                         nextSlot = VideoSlots[targetSlotIndex];
                     }
                 }
-                else if (SelectedRandomize == "Random")
+                else if (SelectedRandomize == "Random" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
                 {
                     if (_randomSlotQueue.Count == 0)
                     {
@@ -913,20 +913,21 @@ namespace GridVids.ViewModels
             if (IsSwapEnabled || SelectedRandomize == "None" || !IsVideoPlaying || VideoSlots.Count == 0) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
-            VideoSlotViewModel? targetSlot = null;
+            var targetSlots = new List<VideoSlotViewModel>();
 
             if (SelectedRandomize == "Staircase")
             {
                 var scIndices = GetStaircaseSlotIndices(Rows, Columns);
-                if (scIndices.Count == 0) return;
-
-                if (_staircaseIndex >= scIndices.Count) _staircaseIndex = 0;
-                int targetSlotIndex = scIndices[_staircaseIndex];
-                _staircaseIndex = (_staircaseIndex + 1) % scIndices.Count;
-
-                if (targetSlotIndex < VideoSlots.Count)
+                if (scIndices.Count > 0)
                 {
-                    targetSlot = VideoSlots[targetSlotIndex];
+                    if (_staircaseIndex >= scIndices.Count) _staircaseIndex = 0;
+                    int targetSlotIndex = scIndices[_staircaseIndex];
+                    _staircaseIndex = (_staircaseIndex + 1) % scIndices.Count;
+
+                    if (targetSlotIndex < VideoSlots.Count)
+                    {
+                        targetSlots.Add(VideoSlots[targetSlotIndex]);
+                    }
                 }
             }
             else if (SelectedRandomize == "Random")
@@ -942,27 +943,70 @@ namespace GridVids.ViewModels
                     int targetSlotIndex = _randomSlotQueue.Dequeue();
                     if (targetSlotIndex < VideoSlots.Count)
                     {
-                        targetSlot = VideoSlots[targetSlotIndex];
+                        targetSlots.Add(VideoSlots[targetSlotIndex]);
                     }
                 }
             }
-
-            if (targetSlot != null)
+            else if (SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
             {
-                if (_nextPreloadedSlot != null && _nextPreloadedSlot.Slot == targetSlot && _nextPreloadedSlot.Process != null && !_nextPreloadedSlot.Process.HasExited)
+                int totalSlots = VideoSlots.Count;
+                int rawCount = totalSlots > 1 ? _rnd.Next(2, totalSlots + 1) : 1;
+                // Scale back by 75% (i.e. 25% of raw count, minimum 1)
+                int countToSelect = Math.Max(1, (int)Math.Round(rawCount * 0.25));
+
+                var selectedIndices = new HashSet<int>();
+                while (selectedIndices.Count < countToSelect && selectedIndices.Count < totalSlots)
+                {
+                    if (_randomSlotQueue.Count == 0)
+                    {
+                        var indices = Enumerable.Range(0, totalSlots).OrderBy(_ => _rnd.Next()).ToList();
+                        foreach (var idx in indices) _randomSlotQueue.Enqueue(idx);
+                    }
+
+                    int nextIdx = _randomSlotQueue.Dequeue();
+                    if (nextIdx < totalSlots)
+                    {
+                        selectedIndices.Add(nextIdx);
+                    }
+                }
+
+                foreach (var idx in selectedIndices)
+                {
+                    targetSlots.Add(VideoSlots[idx]);
+                }
+            }
+
+            if (targetSlots.Count > 0)
+            {
+                var slotsToFetch = new List<VideoSlotViewModel>();
+
+                if (_nextPreloadedSlot != null && targetSlots.Contains(_nextPreloadedSlot.Slot) && _nextPreloadedSlot.Process != null && !_nextPreloadedSlot.Process.HasExited)
                 {
                     var preloaded = _nextPreloadedSlot;
                     _nextPreloadedSlot = null;
                     _playbackService.SwapPreloadedSlot(preloaded.Slot, preloaded.Process, preloaded.VideoPath);
+
+                    foreach (var slot in targetSlots)
+                    {
+                        if (slot != preloaded.Slot)
+                        {
+                            slotsToFetch.Add(slot);
+                        }
+                    }
                 }
                 else
                 {
                     ClearPreloadedSlot();
+                    slotsToFetch.AddRange(targetSlots);
+                }
+
+                if (slotsToFetch.Count > 0)
+                {
                     var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
-                    var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
+                    var newVideos = await _videoLibraryService.GetRandomVideosAsync(slotsToFetch.Count, excludedPaths, IsSingleVidEnabled);
                     if (newVideos.Count > 0)
                     {
-                        await _playbackService.PlayAsync(new[] { targetSlot }, newVideos);
+                        await _playbackService.PlayAsync(slotsToFetch, newVideos);
                     }
                 }
             }

@@ -98,7 +98,7 @@ namespace GridVids.Services
             {
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(200);
+                    await Task.Delay(600);
                     CleanupProcess(oldProcess);
                 });
             }
@@ -129,7 +129,7 @@ namespace GridVids.Services
             {
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(200);
+                    await Task.Delay(600);
                     CleanupProcess(oldProcess);
                 });
             }

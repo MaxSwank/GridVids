@@ -42,7 +42,7 @@
 
             <!-- Randomize Controls -->
             <TextBlock VerticalAlignment="Center" Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
-            <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="100" VerticalAlignment="Center" IsEnabled="{Binding AreManualControlsEnabled}"/>
+            <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" VerticalAlignment="Center" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
             <!-- Swap Controls -->
             <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}" VerticalAlignment="Center"/>
