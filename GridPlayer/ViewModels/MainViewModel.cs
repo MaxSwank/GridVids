@@ -34,7 +34,7 @@ namespace GridVids.ViewModels
             _isSwapEnabled = settings.IsSwapEnabled;
             _isSingleVidEnabled = settings.IsSingleVidEnabled;
             _isRandomStartEnabled = settings.IsRandomStartEnabled;
-            _isMuted = settings.IsMuted;
+            _isMuted = true; // Always start muted
             _volume = settings.Volume > 0 ? settings.Volume : 10;
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
@@ -43,7 +43,7 @@ namespace GridVids.ViewModels
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
             _playbackService.IsRandomStartEnabled = _isRandomStartEnabled;
-            _playbackService.IsMuted = _isMuted;
+            _playbackService.IsMuted = true;
             _playbackService.Volume = _volume;
 
             InitializeOptions();
@@ -688,6 +688,15 @@ namespace GridVids.ViewModels
             IsVideoPlaying = false;
         }
 
+        public void CleanupAllProcesses()
+        {
+            IsSwapEnabled = false;
+            _swapTimer?.Stop();
+            _randomizeTimer?.Stop();
+            _collageTimer?.Stop();
+            _playbackService.StopAll(VideoSlots, CollageSlots);
+        }
+
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<int> DelayOptions { get; } = new();
         public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random", "Randomize Multiple" };
@@ -810,6 +819,7 @@ namespace GridVids.ViewModels
             public VideoSlotViewModel Slot { get; set; } = null!;
             public string VideoPath { get; set; } = string.Empty;
             public System.Diagnostics.Process? Process { get; set; }
+            public DateTime PreloadTime { get; set; } = DateTime.UtcNow;
         }
 
         private PreloadedSlotData? _nextPreloadedSlot;
@@ -889,7 +899,8 @@ namespace GridVids.ViewModels
                     {
                         Slot = nextSlot,
                         VideoPath = videoPath,
-                        Process = proc
+                        Process = proc,
+                        PreloadTime = DateTime.UtcNow
                     };
                 }
             }
@@ -983,8 +994,8 @@ namespace GridVids.ViewModels
             {
                 int totalSlots = VideoSlots.Count;
                 int rawCount = totalSlots > 1 ? _rnd.Next(2, totalSlots + 1) : 1;
-                // Scale back by 75% (i.e. 25% of raw count, minimum 1)
-                int countToSelect = Math.Max(1, (int)Math.Round(rawCount * 0.25));
+                // Scale back by another 50% (i.e. 12.5% of raw count, minimum 1)
+                int countToSelect = Math.Max(1, (int)Math.Round(rawCount * 0.125));
 
                 var selectedIndices = new HashSet<int>();
                 while (selectedIndices.Count < countToSelect && selectedIndices.Count < totalSlots)
@@ -1016,6 +1027,14 @@ namespace GridVids.ViewModels
                 {
                     var preloaded = _nextPreloadedSlot;
                     _nextPreloadedSlot = null;
+
+                    // Ensure the preloaded instance has been running in the background for at least 1.0 second
+                    var elapsedMs = (DateTime.UtcNow - preloaded.PreloadTime).TotalMilliseconds;
+                    if (elapsedMs < 1000)
+                    {
+                        await Task.Delay((int)(1000 - elapsedMs));
+                    }
+
                     _playbackService.SwapPreloadedSlot(preloaded.Slot, preloaded.Process, preloaded.VideoPath);
 
                     foreach (var slot in targetSlots)
@@ -1038,7 +1057,20 @@ namespace GridVids.ViewModels
                     var newVideos = await _videoLibraryService.GetRandomVideosAsync(slotsToFetch.Count, excludedPaths, IsSingleVidEnabled);
                     if (newVideos.Count > 0)
                     {
-                        await _playbackService.PlayAsync(slotsToFetch, newVideos);
+                        for (int i = 0; i < slotsToFetch.Count && i < newVideos.Count; i++)
+                        {
+                            var slot = slotsToFetch[i];
+                            var video = newVideos[i];
+                            if (slot.WindowHandle == IntPtr.Zero) continue;
+
+                            var proc = await _playbackService.PreloadMpvAsync(slot, video);
+                            if (proc != null)
+                            {
+                                // Wait at least 1.0s in background to ensure mpv has fully buffered/drawn initial frame
+                                await Task.Delay(1000);
+                                _playbackService.SwapPreloadedSlot(slot, proc, video);
+                            }
+                        }
                     }
                 }
             }

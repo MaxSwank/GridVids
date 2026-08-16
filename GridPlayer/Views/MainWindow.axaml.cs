@@ -37,6 +37,24 @@ public partial class MainWindow : Window
         var btnClose = this.FindControl<Button>("BtnClose");
         if (btnClose != null) btnClose.Click += (s, e) => Close();
 
+        this.Closing += (s, e) =>
+        {
+            _pollingTimer?.Stop();
+            if (DataContext is MainViewModel vm)
+            {
+                vm.CleanupAllProcesses();
+            }
+            else
+            {
+                GridVids.Services.PlaybackService.KillAllMpvProcesses();
+            }
+        };
+
+        this.Closed += (s, e) =>
+        {
+            GridVids.Services.PlaybackService.KillAllMpvProcesses();
+        };
+
         if (DataContext is MainViewModel vm)
         {
             vm.ShowFolderPickerAsync = ShowFolderPickerAsync;

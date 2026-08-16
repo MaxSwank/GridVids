@@ -105,6 +105,37 @@ namespace GridVids.Services
             }
         }
 
+        public void StopAll(IEnumerable<IGridSlot> slots1, IEnumerable<IGridSlot> slots2)
+        {
+            Stop(slots1);
+            Stop(slots2);
+            KillAllMpvProcesses();
+        }
+
+        public static void KillAllMpvProcesses()
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName("mpv");
+                foreach (var proc in processes)
+                {
+                    try
+                    {
+                        if (!proc.HasExited)
+                        {
+                            proc.Kill();
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        proc.Dispose();
+                    }
+                }
+            }
+            catch { }
+        }
+
         public async Task<Process?> PreloadMpvAsync(IGridSlot slot, string videoPath)
         {
             await _processLaunchSemaphore.WaitAsync();
