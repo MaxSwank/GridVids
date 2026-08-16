@@ -15,10 +15,29 @@ namespace GridVids.Services
         public bool IsRandomStartEnabled { get; set; } = true;
         public bool IsMuted { get; set; } = true;
         public int Volume { get; set; } = 10;
+        public bool IsSloMo { get; set; } = false;
 
         public PlaybackService()
         {
             _orchestrator = new ScriptOrchestrator();
+        }
+
+        public void UpdateSpeed(IEnumerable<IGridSlot> slots, bool isSloMo)
+        {
+            IsSloMo = isSloMo;
+            double speed = isSloMo ? 0.7 : 1.0;
+
+            foreach (var slot in slots)
+            {
+                if (slot.CurrentProcess != null && !slot.CurrentProcess.HasExited)
+                {
+                    try
+                    {
+                        slot.CurrentProcess.StandardInput.WriteLine($"set speed {speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}");
+                    }
+                    catch { }
+                }
+            }
         }
 
         public void UpdateVolume(IEnumerable<IGridSlot> slots, bool isMuted, int volume)
@@ -142,7 +161,7 @@ namespace GridVids.Services
             try
             {
                 var handle = slot.WindowHandle;
-                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0, IsMuted, Volume));
+                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0, IsMuted, Volume, IsSloMo));
             }
             finally
             {
@@ -173,7 +192,7 @@ namespace GridVids.Services
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex, IsMuted, Volume));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex, IsMuted, Volume, IsSloMo));
             }
             finally
             {

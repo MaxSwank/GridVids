@@ -14,5 +14,6 @@ namespace GridVids.Models
         public string SelectedRandomize { get; set; } = "None";
         public bool IsMuted { get; set; } = true;
         public int Volume { get; set; } = 10;
+        public bool IsSloMoEnabled { get; set; } = false;
     }
 }

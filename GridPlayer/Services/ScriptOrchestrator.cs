@@ -105,7 +105,7 @@ namespace GridVids.Services
             catch (Exception ex) { Debug.WriteLine($"Error launching script: {ex.Message}"); }
         }
 
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0, bool isMuted = true, int volume = 10)
+        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0, bool isMuted = true, int volume = 10, bool isSloMo = false)
         {
             double startTime = 0;
             if (randomStart)
@@ -158,6 +158,11 @@ namespace GridVids.Services
                 "--no-osc",
                 "--input-vo-keyboard=no"
             };
+
+            if (isSloMo)
+            {
+                args.Add("--speed=0.7");
+            }
 
             if (isMuted)
             {

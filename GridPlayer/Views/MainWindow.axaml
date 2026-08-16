@@ -68,6 +68,8 @@
 
                 <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
 
+                <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+
                 <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>
                 <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}" VerticalAlignment="Center" Margin="10,0,0,0"/>

@@ -42,9 +42,12 @@ namespace GridVids.ViewModels
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
+            _isSloMoEnabled = settings.IsSloMoEnabled;
+
             _playbackService.IsRandomStartEnabled = _isRandomStartEnabled;
             _playbackService.IsMuted = true;
             _playbackService.Volume = _volume;
+            _playbackService.IsSloMo = _isSloMoEnabled;
 
             InitializeOptions();
             InitializeSwapTimer();
@@ -156,6 +159,7 @@ namespace GridVids.ViewModels
                 IsRandomStartEnabled = IsRandomStartEnabled,
                 IsMuted = IsMuted,
                 Volume = Volume,
+                IsSloMoEnabled = IsSloMoEnabled,
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
                 SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
@@ -782,6 +786,19 @@ namespace GridVids.ViewModels
             {
                 var allSlots = VideoSlots.Concat(CollageSlots);
                 _playbackService.UpdateVolume(allSlots, IsMuted, value);
+            }
+        }
+
+        [ObservableProperty]
+        private bool _isSloMoEnabled = false;
+
+        partial void OnIsSloMoEnabledChanged(bool value)
+        {
+            SaveSettings();
+            if (_playbackService != null)
+            {
+                var allSlots = VideoSlots.Concat(CollageSlots);
+                _playbackService.UpdateSpeed(allSlots, value);
             }
         }
 
