@@ -139,7 +139,7 @@ public partial class MainWindow : Window
                 IntPtr current = hoveredHwnd;
                 while (current != IntPtr.Zero)
                 {
-                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).FirstOrDefault(s => s.WindowHandle == current);
+                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).FirstOrDefault(s => s.WindowHandle == current);
                     if (hoveredSlot != null) break;
                     
                     // Break if we reach the main window handle to avoid climbing too high
@@ -149,7 +149,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots))
+            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots))
             {
                 if (slot == hoveredSlot)
                 {

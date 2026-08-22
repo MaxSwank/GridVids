@@ -10,10 +10,11 @@ namespace GridVids.Models
         public bool IsRandomStartEnabled { get; set; } = true;
         public string SelectedGrid1 { get; set; } = "2x2";
         public string SelectedGrid2 { get; set; } = "3x3";
-        public int SelectedDelay { get; set; } = 10;
+        public double SelectedDelay { get; set; } = 10.0;
         public string SelectedRandomize { get; set; } = "None";
         public bool IsMuted { get; set; } = true;
         public int Volume { get; set; } = 10;
         public bool IsSloMoEnabled { get; set; } = false;
+        public bool IsStackableEnabled { get; set; } = false;
     }
 }

@@ -124,10 +124,11 @@ namespace GridVids.Services
             }
         }
 
-        public void StopAll(IEnumerable<IGridSlot> slots1, IEnumerable<IGridSlot> slots2)
+        public void StopAll(IEnumerable<IGridSlot> slots1, IEnumerable<IGridSlot> slots2, IEnumerable<IGridSlot>? slots3 = null)
         {
             Stop(slots1);
             Stop(slots2);
+            if (slots3 != null) Stop(slots3);
             KillAllMpvProcesses();
         }
 

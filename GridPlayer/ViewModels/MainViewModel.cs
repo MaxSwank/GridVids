@@ -18,10 +18,11 @@ namespace GridVids.ViewModels
         private readonly VideoLibraryService _videoLibraryService;
         private readonly PlaybackService _playbackService;
         private bool firstRun = true;
-        private int _restoredDelay = 10;
+        private double _restoredDelay = 10.0;
 
         public ObservableCollection<VideoSlotViewModel> VideoSlots { get; } = new();
         public ObservableCollection<VideoSlotViewModel> CollageSlots { get; } = new();
+        public ObservableCollection<VideoSlotViewModel> StackSlots { get; } = new();
 
         public MainViewModel()
         {
@@ -39,6 +40,7 @@ namespace GridVids.ViewModels
             _selectedGrid1 = !string.IsNullOrEmpty(settings.SelectedGrid1) ? settings.SelectedGrid1 : "2x2";
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
             _selectedRandomize = !string.IsNullOrEmpty(settings.SelectedRandomize) ? settings.SelectedRandomize : "None";
+            _isStackableEnabled = settings.IsStackableEnabled;
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
@@ -52,6 +54,7 @@ namespace GridVids.ViewModels
             InitializeOptions();
             InitializeSwapTimer();
             InitializeRandomizeTimer();
+            InitializeStackTimer();
 
             _rows = settings.Rows > 0 ? settings.Rows : 2;
             _columns = settings.Columns > 0 ? settings.Columns : 2;
@@ -70,6 +73,7 @@ namespace GridVids.ViewModels
         }
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
         private int _rows = 2;
 
         private bool _suppressAutoRun = false;
@@ -78,6 +82,10 @@ namespace GridVids.ViewModels
         {
             UpdateGrid();
             SaveSettings();
+            if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
+            {
+                IsStackableEnabled = false;
+            }
             if (!string.IsNullOrEmpty(VideoPath) && !_suppressAutoRun)
             {
                 _ = ExecutePlayback();
@@ -85,12 +93,17 @@ namespace GridVids.ViewModels
         }
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
         private int _columns = 2;
 
         partial void OnColumnsChanged(int value)
         {
             UpdateGrid();
             SaveSettings();
+            if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
+            {
+                IsStackableEnabled = false;
+            }
             if (!string.IsNullOrEmpty(VideoPath) && !_suppressAutoRun)
             {
                 _ = ExecutePlayback();
@@ -163,7 +176,8 @@ namespace GridVids.ViewModels
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
                 SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
-                SelectedRandomize = SelectedRandomize
+                SelectedRandomize = SelectedRandomize,
+                IsStackableEnabled = IsStackableEnabled
             };
             _settingsService.SaveSettings(settings);
         }
@@ -663,7 +677,10 @@ namespace GridVids.ViewModels
                 SelectedDelay = _restoredDelay;
             }
 
-            _ = PreloadNextSlotAsync();
+            if (!IsStackableEnabled)
+            {
+                _ = PreloadNextSlotAsync();
+            }
         }
 
 
@@ -688,7 +705,10 @@ namespace GridVids.ViewModels
         public void Stop()
         {
             IsSwapEnabled = false; // Stop timer
+            _stackTimer?.Stop();
             _playbackService.Stop(VideoSlots);
+            ClearStackSlots();
+            ClearPreloadedBaseBatch();
             IsVideoPlaying = false;
         }
 
@@ -698,11 +718,14 @@ namespace GridVids.ViewModels
             _swapTimer?.Stop();
             _randomizeTimer?.Stop();
             _collageTimer?.Stop();
-            _playbackService.StopAll(VideoSlots, CollageSlots);
+            _stackTimer?.Stop();
+            _playbackService.StopAll(VideoSlots, CollageSlots, StackSlots);
+            ClearPreloadedBaseBatch();
+            StackSlots.Clear();
         }
 
         public ObservableCollection<string> GridSizeOptions { get; } = new();
-        public ObservableCollection<int> DelayOptions { get; } = new();
+        public ObservableCollection<double> DelayOptions { get; } = new();
         public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random", "Randomize Multiple" };
 
         private void InitializeOptions()
@@ -711,6 +734,7 @@ namespace GridVids.ViewModels
             for (int c = 3; c <= 8; c++) GridSizeOptions.Add($"3x{c}");
             for (int c = 4; c <= 8; c++) GridSizeOptions.Add($"4x{c}");
 
+            DelayOptions.Add(0.5);
             for (int d = 1; d <= 4; d++) DelayOptions.Add(d);
             for (int d = 5; d <= 200; d += 5) DelayOptions.Add(d);
         }
@@ -718,13 +742,19 @@ namespace GridVids.ViewModels
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
         [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
         private bool _isSwapEnabled;
         partial void OnIsSwapEnabledChanged(bool value)
         {
             SaveSettings();
-            if (value) _swapTimer?.Start();
+            if (value)
+            {
+                if (IsStackableEnabled) IsStackableEnabled = false;
+                _swapTimer?.Start();
+            }
             else _swapTimer?.Stop();
             UpdateRandomizeTimer();
+            UpdateStackTimer();
         }
 
         [ObservableProperty]
@@ -797,13 +827,27 @@ namespace GridVids.ViewModels
             SaveSettings();
             if (_playbackService != null)
             {
-                var allSlots = VideoSlots.Concat(CollageSlots);
+                var allSlots = VideoSlots.Concat(CollageSlots).Concat(StackSlots);
                 _playbackService.UpdateSpeed(allSlots, value);
             }
         }
 
-        public bool AreManualControlsEnabled => !IsSwapEnabled;
-        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None");
+        public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled;
+        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled;
+
+        public bool IsStackableVisible => !IsCollageEnabled && !IsSwapEnabled && (Rows == 2 && (Columns == 2 || Columns == 4));
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
+        private bool _isStackableEnabled = false;
+
+        partial void OnIsStackableEnabledChanged(bool value)
+        {
+            SaveSettings();
+            UpdateStackTimer();
+            UpdateRandomizeTimer();
+        }
 
         [ObservableProperty]
         private string _selectedGrid1 = "2x2";
@@ -814,19 +858,435 @@ namespace GridVids.ViewModels
         partial void OnSelectedGrid2Changed(string value) => SaveSettings();
 
         [ObservableProperty]
-        private int _selectedDelay = 10;
-        partial void OnSelectedDelayChanged(int value)
+        private double _selectedDelay = 10.0;
+        partial void OnSelectedDelayChanged(double value)
         {
             if (firstRun && value > 0) _restoredDelay = value; // User intervention during startup
 
-            if (_swapTimer != null) _swapTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, value));
-            if (_randomizeTimer != null) _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, value));
+            if (_swapTimer != null) _swapTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
+            if (_randomizeTimer != null) _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
+            if (_stackTimer != null) _stackTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
             SaveSettings();
         }
 
 
         private Avalonia.Threading.DispatcherTimer? _swapTimer;
         private Avalonia.Threading.DispatcherTimer? _randomizeTimer;
+        private Avalonia.Threading.DispatcherTimer? _stackTimer;
+        private int _stackQuadrantStep = 0; // 0 = reveal Quad 1, 1 = reveal Quad 2, 2 = reveal Quad 3, 3 = reveal Quad 4 & preload base, 4 = swap base & preload Quad 1
+        private bool _isStackRunning = false;
+        private List<PreloadedSlotData>? _preloadedBaseBatch;
+        private List<VideoSlotViewModel>? _preloadedQuad1Slots;
+
+        private void InitializeStackTimer()
+        {
+            _stackTimer = new Avalonia.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay))
+            };
+            _stackTimer.Tick += StackTimer_Tick;
+            UpdateStackTimer();
+        }
+
+        private void UpdateStackTimer()
+        {
+            if (_stackTimer == null) return;
+
+            if (IsStackableEnabled && !IsCollageEnabled && !IsSwapEnabled)
+            {
+                _stackQuadrantStep = 0;
+                ClearPreloadedQuad1Slots();
+                _stackTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay));
+                if (!_stackTimer.IsEnabled) _stackTimer.Start();
+                _ = PreloadQuad1SlotsAsync();
+            }
+            else
+            {
+                _stackTimer.Stop();
+                ClearStackSlots();
+                ClearPreloadedBaseBatch();
+                ClearPreloadedQuad1Slots();
+            }
+        }
+
+        private void ClearPreloadedBaseBatch()
+        {
+            if (_preloadedBaseBatch != null)
+            {
+                foreach (var item in _preloadedBaseBatch)
+                {
+                    if (item.Process != null && !item.Process.HasExited)
+                    {
+                        try { item.Process.Kill(); } catch { }
+                        item.Process.Dispose();
+                    }
+                }
+                _preloadedBaseBatch = null;
+            }
+        }
+
+        private void ClearPreloadedQuad1Slots()
+        {
+            if (_preloadedQuad1Slots != null)
+            {
+                var slotsToStop = _preloadedQuad1Slots.ToList();
+                _preloadedQuad1Slots = null;
+                _playbackService.Stop(slotsToStop);
+            }
+        }
+
+        private void ClearStackSlots()
+        {
+            if (StackSlots.Count > 0)
+            {
+                var slotsToStop = StackSlots.ToList();
+                StackSlots.Clear();
+                _playbackService.Stop(slotsToStop);
+            }
+        }
+
+        private async Task PreloadQuad1SlotsAsync()
+        {
+            try
+            {
+                if (!IsStackableEnabled || IsCollageEnabled || IsSwapEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath)) return;
+
+                double effectiveW = ContainerWidth > 100 ? ContainerWidth : 1500;
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+
+                int curRows = Rows;
+                int curCols = Columns;
+                double cellW = effectiveW / curCols;
+                double cellH = effectiveH / curRows;
+                double quadW = cellW / 2.0;
+                double quadH = cellH / 2.0;
+
+                var newSlots = new List<VideoSlotViewModel>();
+
+                for (int r = 0; r < curRows; r++)
+                {
+                    for (int c = 0; c < curCols; c++)
+                    {
+                        double posX = Math.Round(c * cellW);
+                        double posY = Math.Round(r * cellH);
+                        double width = Math.Round(quadW);
+                        double height = Math.Round(quadH);
+
+                        var s = new VideoSlotViewModel
+                        {
+                            CollageX = posX,
+                            CollageY = posY,
+                            CollageWidth = width,
+                            CollageHeight = height,
+                            IsCollageVisible = true, // Positioned on top-left of each slot
+                            Opacity = 0.0, // Invisible until step 1
+                            Index = StackSlots.Count + newSlots.Count
+                        };
+                        newSlots.Add(s);
+                    }
+                }
+
+                foreach (var s in newSlots)
+                {
+                    StackSlots.Add(s);
+                }
+
+                // Wait for window handles to be created
+                var sw = Stopwatch.StartNew();
+                while (sw.ElapsedMilliseconds < 1500 && newSlots.Any(s => s.WindowHandle == IntPtr.Zero))
+                {
+                    await Task.Delay(50);
+                }
+
+                var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+                if (validSlots.Count > 0 && IsStackableEnabled)
+                {
+                    var excluded = VideoSlots.Concat(StackSlots)
+                        .Select(s => s.CurrentVideoPath)
+                        .Where(p => !string.IsNullOrEmpty(p))
+                        .Cast<string>()
+                        .ToHashSet();
+
+                    var vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, IsSingleVidEnabled);
+                    if (vids.Count > 0)
+                    {
+                        var tasks = new List<Task>();
+                        for (int i = 0; i < validSlots.Count && i < vids.Count; i++)
+                        {
+                            tasks.Add(_playbackService.PreloadMpvAsync(validSlots[i], vids[i]));
+                        }
+                        await Task.WhenAll(tasks);
+                        _preloadedQuad1Slots = validSlots;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error preloading Quad 1: {ex.Message}");
+            }
+        }
+
+        private async void StackTimer_Tick(object? sender, EventArgs e)
+        {
+            if (!IsStackableEnabled || IsCollageEnabled || IsSwapEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath))
+            {
+                return;
+            }
+
+            if (_isStackRunning) return;
+            _isStackRunning = true;
+
+            try
+            {
+                double effectiveW = ContainerWidth > 100 ? ContainerWidth : 1500;
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+
+                int curRows = Rows;
+                int curCols = Columns;
+                double cellW = effectiveW / curCols;
+                double cellH = effectiveH / curRows;
+                double quadW = cellW / 2.0;
+                double quadH = cellH / 2.0;
+
+                if (_stackQuadrantStep >= 0 && _stackQuadrantStep < 4)
+                {
+                    // Quadrant offsets (Clockwise: 0=Top-Left, 1=Top-Right, 2=Bottom-Right, 3=Bottom-Left)
+                    int quadIndex = _stackQuadrantStep;
+                    _stackQuadrantStep++;
+
+                    if (quadIndex == 0)
+                    {
+                        // Step 1 (Top-Left): If background preload is in-flight, wait up to 3s for it to finish and start playing
+                        var waitSw = Stopwatch.StartNew();
+                        while (waitSw.ElapsedMilliseconds < 3000 && (_preloadedQuad1Slots == null || _preloadedQuad1Slots.Any(s => s.CurrentProcess == null || s.CurrentProcess.HasExited)))
+                        {
+                            await Task.Delay(50);
+                        }
+
+                        if (_preloadedQuad1Slots != null && _preloadedQuad1Slots.Count > 0 && _preloadedQuad1Slots.All(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
+                        {
+                            // Video is loaded and running in background -> reveal seamlessly
+                            foreach (var s in _preloadedQuad1Slots)
+                            {
+                                s.Opacity = 1.0;
+                                s.IsCollageVisible = true;
+                            }
+                            _preloadedQuad1Slots = null;
+                        }
+                        else
+                        {
+                            // Fallback if preload timed out or failed: load directly and wait for mpv to start
+                            _preloadedQuad1Slots = null;
+                            await LoadAndDisplayQuadrantSlotsAsync(0, 0, 0, quadW, quadH, curRows, curCols, cellW, cellH);
+                        }
+                    }
+                    else
+                    {
+                        double qOffsetX = 0;
+                        double qOffsetY = 0;
+
+                        switch (quadIndex)
+                        {
+                            case 1: // Top-Right
+                                qOffsetX = quadW;
+                                qOffsetY = 0;
+                                break;
+                            case 2: // Bottom-Right
+                                qOffsetX = quadW;
+                                qOffsetY = quadH;
+                                break;
+                            case 3: // Bottom-Left
+                                qOffsetX = 0;
+                                qOffsetY = quadH;
+                                break;
+                        }
+
+                        await LoadAndDisplayQuadrantSlotsAsync(quadIndex, qOffsetX, qOffsetY, quadW, quadH, curRows, curCols, cellW, cellH);
+                    }
+
+                    // During Step 3 (Bottom-Right, quadIndex == 2) or Step 4 (Bottom-Left, quadIndex == 3),
+                    // preload the next 2x2 base batch in background so it is completely ready!
+                    if (quadIndex == 2 || quadIndex == 3)
+                    {
+                        if (_preloadedBaseBatch == null)
+                        {
+                            _ = PreloadNextBaseBatchAsync();
+                        }
+                    }
+                }
+                else
+                {
+                    // The 4 stack videos have completed. Now swap the 2x2 base batch to the preloaded videos,
+                    // clear overlays, and start preloading Quad 1 for the next cycle!
+                    _stackQuadrantStep = 0;
+
+                    if (_preloadedBaseBatch != null && _preloadedBaseBatch.Count == VideoSlots.Count && _preloadedBaseBatch.All(p => p.Process != null && !p.Process.HasExited))
+                    {
+                        var batchToSwap = _preloadedBaseBatch;
+                        _preloadedBaseBatch = null;
+
+                        foreach (var item in batchToSwap)
+                        {
+                            if (item.Process != null)
+                            {
+                                _playbackService.SwapPreloadedSlot(item.Slot, item.Process, item.VideoPath);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ClearPreloadedBaseBatch();
+                        await ExecutePlayback();
+                    }
+
+                    // Clear the overlays from the previous 4-stack cycle
+                    ClearStackSlots();
+
+                    // Preload Quad 1 for the new cycle
+                    _ = PreloadQuad1SlotsAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Stack timer error: {ex.Message}");
+            }
+            finally
+            {
+                _isStackRunning = false;
+            }
+        }
+
+        private async Task PreloadNextBaseBatchAsync()
+        {
+            try
+            {
+                ClearPreloadedBaseBatch();
+
+                if (!IsStackableEnabled || VideoSlots.Count == 0) return;
+
+                var excluded = VideoSlots.Concat(StackSlots)
+                    .Select(s => s.CurrentVideoPath)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .Cast<string>()
+                    .ToHashSet();
+
+                var vids = await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count, excluded, IsSingleVidEnabled);
+                if (vids.Count == VideoSlots.Count)
+                {
+                    var preloadedList = new List<PreloadedSlotData>();
+                    var preloadTasks = new List<Task>();
+
+                    for (int i = 0; i < VideoSlots.Count; i++)
+                    {
+                        var slot = VideoSlots[i];
+                        var videoPath = vids[i];
+
+                        preloadTasks.Add(Task.Run(async () =>
+                        {
+                            var proc = await _playbackService.PreloadMpvAsync(slot, videoPath);
+                            if (proc != null)
+                            {
+                                lock (preloadedList)
+                                {
+                                    preloadedList.Add(new PreloadedSlotData
+                                    {
+                                        Slot = slot,
+                                        VideoPath = videoPath,
+                                        Process = proc,
+                                        PreloadTime = DateTime.UtcNow
+                                    });
+                                }
+                            }
+                        }));
+                    }
+
+                    await Task.WhenAll(preloadTasks);
+
+                    if (preloadedList.Count == VideoSlots.Count && IsStackableEnabled)
+                    {
+                        _preloadedBaseBatch = preloadedList;
+                    }
+                    else
+                    {
+                        // Some failed or mode cancelled, clean up
+                        foreach (var item in preloadedList)
+                        {
+                            if (item.Process != null && !item.Process.HasExited)
+                            {
+                                try { item.Process.Kill(); } catch { }
+                                item.Process.Dispose();
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error preloading next base batch: {ex.Message}");
+            }
+        }
+
+        private async Task LoadAndDisplayQuadrantSlotsAsync(int quadIndex, double qOffsetX, double qOffsetY, double quadW, double quadH, int curRows, int curCols, double cellW, double cellH)
+        {
+            var newSlots = new List<VideoSlotViewModel>();
+
+            for (int r = 0; r < curRows; r++)
+            {
+                for (int c = 0; c < curCols; c++)
+                {
+                    double posX = Math.Round((c * cellW) + qOffsetX);
+                    double posY = Math.Round((r * cellH) + qOffsetY);
+                    double width = Math.Round(quadW);
+                    double height = Math.Round(quadH);
+
+                    var s = new VideoSlotViewModel
+                    {
+                        CollageX = posX,
+                        CollageY = posY,
+                        CollageWidth = width,
+                        CollageHeight = height,
+                        IsCollageVisible = true,
+                        Opacity = 1.0,
+                        Index = StackSlots.Count + newSlots.Count
+                    };
+                    newSlots.Add(s);
+                }
+            }
+
+            foreach (var s in newSlots)
+            {
+                StackSlots.Add(s);
+            }
+
+            // Wait for window handles to be created
+            var sw = Stopwatch.StartNew();
+            while (sw.ElapsedMilliseconds < 1500 && newSlots.Any(s => s.WindowHandle == IntPtr.Zero))
+            {
+                await Task.Delay(50);
+            }
+
+            var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+            if (validSlots.Count > 0 && IsStackableEnabled)
+            {
+                var excluded = VideoSlots.Concat(StackSlots)
+                    .Select(s => s.CurrentVideoPath)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .Cast<string>()
+                    .ToHashSet();
+
+                var vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, IsSingleVidEnabled);
+                if (vids.Count > 0)
+                {
+                    var tasks = new List<Task>();
+                    for (int i = 0; i < validSlots.Count && i < vids.Count; i++)
+                    {
+                        tasks.Add(_playbackService.PreloadMpvAsync(validSlots[i], vids[i]));
+                    }
+                    await Task.WhenAll(tasks);
+                }
+            }
+        }
+
         private Queue<int> _randomSlotQueue = new();
         private int _staircaseIndex = 0;
         private bool _isShowingGrid1 = true;
@@ -854,7 +1314,7 @@ namespace GridVids.ViewModels
 
         private async Task PreloadNextSlotAsync()
         {
-            if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || VideoSlots.Count == 0) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
             _isPreloading = true;
@@ -935,7 +1395,7 @@ namespace GridVids.ViewModels
         {
             _swapTimer = new Avalonia.Threading.DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(Math.Max(1, SelectedDelay))
+                Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay))
             };
             _swapTimer.Tick += SwapTimer_Tick;
             if (IsSwapEnabled) _swapTimer.Start();
@@ -945,7 +1405,7 @@ namespace GridVids.ViewModels
         {
             _randomizeTimer = new Avalonia.Threading.DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(Math.Max(1, SelectedDelay))
+                Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay))
             };
             _randomizeTimer.Tick += RandomizeTimer_Tick;
             UpdateRandomizeTimer();
@@ -955,9 +1415,9 @@ namespace GridVids.ViewModels
         {
             if (_randomizeTimer == null) return;
 
-            if (!IsSwapEnabled && SelectedRandomize != "None")
+            if (!IsSwapEnabled && SelectedRandomize != "None" && !IsStackableEnabled)
             {
-                _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(1, SelectedDelay));
+                _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay));
                 if (!_randomizeTimer.IsEnabled) _randomizeTimer.Start();
                 _ = PreloadNextSlotAsync();
             }
@@ -970,7 +1430,7 @@ namespace GridVids.ViewModels
 
         private async void RandomizeTimer_Tick(object? sender, EventArgs e)
         {
-            if (IsSwapEnabled || SelectedRandomize == "None" || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            if (IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || VideoSlots.Count == 0) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
             var targetSlots = new List<VideoSlotViewModel>();

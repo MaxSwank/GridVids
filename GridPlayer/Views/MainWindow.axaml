@@ -53,6 +53,9 @@
             <TextBlock Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
             <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
+            <!-- Stackable Control (Only visible for 2x2 or 2x4) -->
+            <CheckBox Content="Stackable" IsChecked="{Binding IsStackableEnabled}" IsVisible="{Binding IsStackableVisible}"/>
+
             <!-- Swap Controls -->
             <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}"/>
             
@@ -99,6 +102,43 @@
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                         <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #Embedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Stack Overlay View -->
+        <ItemsControl Grid.Row="2" Name="StackContainer" ItemsSource="{Binding StackSlots}" IsVisible="{Binding !IsCollageEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Transparent"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Black" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="StackEmbedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #StackEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
                             <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
                                 <StackPanel>
                                     <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
