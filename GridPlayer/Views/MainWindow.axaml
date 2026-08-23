@@ -21,7 +21,7 @@
 
     <Grid RowDefinitions="Auto,Auto,*">
         <!-- Custom Title Bar -->
-        <Grid Grid.Row="0" Height="32" Background="#1a1a1a" IsVisible="{Binding IsTitleBarVisible}" ColumnDefinitions="*,Auto" Name="TitleBar">
+        <Grid Grid.Row="0" Height="32" Background="#1a1a1a" IsVisible="{Binding IsTitleBarVisible}" ColumnDefinitions="*,Auto" Name="TitleBar" ZIndex="1000">
             <TextBlock Text="{Binding Title, RelativeSource={RelativeSource FindAncestor, AncestorType=Window}}"
                        Foreground="#e0e0e0" VerticalAlignment="Center" Margin="12,0" FontSize="13" FontWeight="SemiBold"/>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -31,59 +31,63 @@
             </StackPanel>
         </Grid>
         <!-- Control Bar -->
-        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="10" IsVisible="{Binding IsControlBarVisible}">
-            <WrapPanel.Styles>
-                <Style Selector="WrapPanel > :is(Control)">
-                    <Setter Property="Margin" Value="0,3,10,3"/>
-                    <Setter Property="VerticalAlignment" Value="Center"/>
-                </Style>
-            </WrapPanel.Styles>
+        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#333333" BorderThickness="0,0,0,1" IsVisible="{Binding IsControlBarVisible}" ZIndex="1000">
+            <WrapPanel Orientation="Horizontal" Margin="10">
+                <WrapPanel.Styles>
+                    <Style Selector="WrapPanel > :is(Control)">
+                        <Setter Property="Margin" Value="0,3,10,3"/>
+                        <Setter Property="VerticalAlignment" Value="Center"/>
+                    </Style>
+                </WrapPanel.Styles>
 
-            <!-- Folder Selector -->
-            <Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder"/>
-            <TextBlock Text="{Binding VideoPath}" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
-            
-            <!-- Grid Size Controls -->
-            <TextBlock Text="Rows:"/>
-            <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" IsEnabled="{Binding AreManualControlsEnabled}"/>
-            <TextBlock Text="Cols:"/>
-            <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <!-- Folder Selector -->
+                <Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder"/>
+                <TextBlock Text="{Binding VideoPath}" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
+                
+                <!-- Grid Size Controls -->
+                <TextBlock Text="Rows:"/>
+                <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <TextBlock Text="Cols:"/>
+                <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
-            <!-- Randomize Controls -->
-            <TextBlock Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
-            <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <!-- Randomize Controls -->
+                <TextBlock Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
-            <!-- Stackable Control (Only visible for 2x2 or 2x4) -->
-            <CheckBox Content="Stackable" IsChecked="{Binding IsStackableEnabled}" IsVisible="{Binding IsStackableVisible}"/>
+                <!-- Stackable Control (Only visible for 2x2 or 2x4) -->
+                <CheckBox Content="Stackable" IsChecked="{Binding IsStackableEnabled}" IsVisible="{Binding IsStackableVisible}"/>
 
-            <!-- Swap Controls -->
-            <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}"/>
-            
-            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
-            <TextBlock Text="-"/>
-            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
+                <!-- Scroll Control (Only visible for 2x4) -->
+                <CheckBox Content="Scroll" IsChecked="{Binding IsScrollEnabled}" IsVisible="{Binding IsScrollVisible}"/>
 
-            <TextBlock Text="Delay:" IsEnabled="{Binding IsDelayEnabled}"/>
-            <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" IsEnabled="{Binding IsDelayEnabled}"/>
+                <!-- Swap Controls -->
+                <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}"/>
+                
+                <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
+                <TextBlock Text="-"/>
+                <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
 
-            <!-- Audio & Playback Options -->
-            <CheckBox Content="Mute" IsChecked="{Binding IsMuted}"/>
-            <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding !IsMuted}">
-                <TextBlock Text="Vol:"/>
-                <Slider Value="{Binding Volume}" Minimum="0" Maximum="100" Width="90"/>
-                <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Width="35" FontSize="11"/>
-            </StackPanel>
+                <TextBlock Text="Delay:" IsEnabled="{Binding IsDelayEnabled}"/>
+                <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" IsEnabled="{Binding IsDelayEnabled}"/>
 
-            <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}"/>
-            <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}"/>
-            <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}"/>
-            <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}"/>
-            <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}"/>
-        </WrapPanel>
+                <!-- Audio & Playback Options -->
+                <CheckBox Content="Mute" IsChecked="{Binding IsMuted}"/>
+                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding !IsMuted}">
+                    <TextBlock Text="Vol:"/>
+                    <Slider Value="{Binding Volume}" Minimum="0" Maximum="100" Width="90"/>
+                    <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Width="35" FontSize="11"/>
+                </StackPanel>
+
+                <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}"/>
+                <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}"/>
+                <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}"/>
+                <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}"/>
+                <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}"/>
+            </WrapPanel>
+        </Border>
 
         <!-- Video Grid -->
-        <!-- Video Grid -->
-        <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding !IsCollageEnabled}">
+        <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding IsGridVisible}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <UniformGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>
@@ -116,7 +120,7 @@
         </ItemsControl>
 
         <!-- Stack Overlay View -->
-        <ItemsControl Grid.Row="2" Name="StackContainer" ItemsSource="{Binding StackSlots}" IsVisible="{Binding !IsCollageEnabled}">
+        <ItemsControl Grid.Row="2" Name="StackContainer" ItemsSource="{Binding StackSlots}" IsVisible="{Binding IsStackableEnabled}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                     <Canvas Background="Transparent"/>
@@ -139,6 +143,43 @@
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                         <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #StackEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Scroll View -->
+        <ItemsControl Grid.Row="2" Name="ScrollContainer" ItemsSource="{Binding ScrollSlots}" IsVisible="{Binding IsScrollEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Black" ClipToBounds="True"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Black" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="ScrollEmbedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #ScrollEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
                             <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
                                 <StackPanel>
                                     <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>

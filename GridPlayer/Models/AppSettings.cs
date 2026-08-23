@@ -16,5 +16,7 @@ namespace GridVids.Models
         public int Volume { get; set; } = 10;
         public bool IsSloMoEnabled { get; set; } = false;
         public bool IsStackableEnabled { get; set; } = false;
+        public bool IsScrollEnabled { get; set; } = false;
     }
 }
+

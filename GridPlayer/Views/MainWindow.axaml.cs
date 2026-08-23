@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             vm.ShowFolderPickerAsync = ShowFolderPickerAsync;
+            UpdateFullScreenState();
         }
 
         DataContextChanged += (s, e) =>
@@ -67,15 +68,27 @@ public partial class MainWindow : Window
                 newVm.ShowFolderPickerAsync = ShowFolderPickerAsync;
                 if (Bounds.Width > 0) newVm.ContainerWidth = Bounds.Width;
                 if (Bounds.Height > 0) newVm.ContainerHeight = Bounds.Height;
+                UpdateFullScreenState();
             }
         };
 
+        this.PropertyChanged += (s, e) =>
+        {
+            if (e.Property == Window.WindowStateProperty)
+            {
+                UpdateFullScreenState();
+            }
+        };
+
+        this.PositionChanged += (s, e) => UpdateFullScreenState();
+
         this.SizeChanged += (s, e) =>
         {
-            if (DataContext is MainViewModel vm)
+            if (DataContext is MainViewModel activeVm)
             {
-                vm.ContainerWidth = e.NewSize.Width;
-                vm.ContainerHeight = e.NewSize.Height;
+                activeVm.ContainerWidth = e.NewSize.Width;
+                activeVm.ContainerHeight = e.NewSize.Height;
+                UpdateFullScreenState();
             }
         };
 
@@ -121,11 +134,8 @@ public partial class MainWindow : Window
                     _lastMoveTime = DateTime.Now;
                     if (!vm.IsControlBarVisible || !vm.IsTitleBarVisible)
                     {
-                        if ((DateTime.Now - _lastMoveTime).TotalSeconds < 0.5)
-                        {
-                            vm.IsControlBarVisible = true;
-                            vm.IsTitleBarVisible = true;
-                        }
+                        vm.IsControlBarVisible = true;
+                        vm.IsTitleBarVisible = true;
                     }
                 }
             }
@@ -139,7 +149,7 @@ public partial class MainWindow : Window
                 IntPtr current = hoveredHwnd;
                 while (current != IntPtr.Zero)
                 {
-                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).FirstOrDefault(s => s.WindowHandle == current);
+                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).Concat(vm.ScrollSlots).FirstOrDefault(s => s.WindowHandle == current);
                     if (hoveredSlot != null) break;
                     
                     // Break if we reach the main window handle to avoid climbing too high
@@ -149,7 +159,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots))
+            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).Concat(vm.ScrollSlots))
             {
                 if (slot == hoveredSlot)
                 {
@@ -180,6 +190,12 @@ public partial class MainWindow : Window
             // 3. Auto-Hide
             if (vm.IsAutoHideEnabled)
             {
+                // Pause auto-hide timer if mouse is hovering over top settings/titlebar area (Y <= 90)
+                if (clientPoint.Y >= 0 && clientPoint.Y <= 90 && clientPoint.X >= 0 && clientPoint.X <= this.Bounds.Width)
+                {
+                    _lastMoveTime = DateTime.Now;
+                }
+
                 var idleSeconds = (DateTime.Now - _lastMoveTime).TotalSeconds;
                 if (idleSeconds > InactivityThresholdSeconds)
                 {
@@ -222,5 +238,41 @@ public partial class MainWindow : Window
 
         var folder = folders.FirstOrDefault();
         return folder?.Path.LocalPath;
+    }
+
+    private void UpdateFullScreenState()
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            bool isMaxOrFull = WindowState == WindowState.FullScreen || WindowState == WindowState.Maximized;
+            bool touchesTopAndBottom = false;
+
+            if (isMaxOrFull)
+            {
+                touchesTopAndBottom = true;
+            }
+            else
+            {
+                var screen = Screens.ScreenFromWindow(this);
+                if (screen != null)
+                {
+                    double boundsTop = screen.Bounds.Y;
+                    double boundsBottom = screen.Bounds.Y + screen.Bounds.Height;
+
+                    double workTop = screen.WorkingArea.Y;
+                    double workBottom = screen.WorkingArea.Y + screen.WorkingArea.Height;
+
+                    double windowTop = Position.Y;
+                    double windowBottom = Position.Y + Bounds.Height;
+
+                    bool touchesTop = (windowTop <= boundsTop + 10) || (Math.Abs(windowTop - workTop) <= 10);
+                    bool touchesBottom = (windowBottom >= boundsBottom - 10) || (Math.Abs(windowBottom - workBottom) <= 10);
+
+                    touchesTopAndBottom = touchesTop && touchesBottom;
+                }
+            }
+
+            vm.IsFullScreen = touchesTopAndBottom;
+        }
     }
 }

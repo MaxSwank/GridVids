@@ -12,7 +12,8 @@ namespace GridVids.Controls
             AvaloniaProperty.RegisterDirect<NativeEmbeddingControl, IntPtr>(
                 nameof(HWnd),
                 o => o.HWnd,
-                (o, v) => o.HWnd = v);
+                (o, v) => o.HWnd = v,
+                defaultBindingMode: Avalonia.Data.BindingMode.TwoWay);
 
         private IntPtr _hWnd;
         public IntPtr HWnd
