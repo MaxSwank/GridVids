@@ -124,6 +124,8 @@ namespace GridVids.ViewModels
 
             _staircaseIndex = 0;
             _randomSlotQueue.Clear();
+            _currentSingleVidForMultiple = null;
+            _slotsUpdatedInCycle.Clear();
 
             EnsureSlotCount(total);
             UpdateVisibility();
@@ -661,6 +663,12 @@ namespace GridVids.ViewModels
 
             // Select random videos for the slots
             var selectedVideos = specificVideoList ?? await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count, null, IsSingleVidEnabled);
+            bool isMultipleSingleVid = IsSingleVidEnabled && (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple");
+            if (isMultipleSingleVid && selectedVideos.Count > 0)
+            {
+                _currentSingleVidForMultiple = selectedVideos[0];
+                _slotsUpdatedInCycle.Clear();
+            }
 
             // Phase 1: Start all new instances concurrently and update immediately
             IsVideoPlaying = true;
@@ -726,7 +734,7 @@ namespace GridVids.ViewModels
 
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<double> DelayOptions { get; } = new();
-        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Random", "Randomize Multiple" };
+        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Multiple" };
 
         private void InitializeOptions()
         {
@@ -764,6 +772,8 @@ namespace GridVids.ViewModels
         {
             _staircaseIndex = 0;
             _randomSlotQueue.Clear();
+            _currentSingleVidForMultiple = null;
+            _slotsUpdatedInCycle.Clear();
             ClearPreloadedSlot();
             SaveSettings();
             UpdateRandomizeTimer();
@@ -1288,6 +1298,8 @@ namespace GridVids.ViewModels
         }
 
         private Queue<int> _randomSlotQueue = new();
+        private string? _currentSingleVidForMultiple;
+        private HashSet<int> _slotsUpdatedInCycle = new();
         private int _staircaseIndex = 0;
         private bool _isShowingGrid1 = true;
 
@@ -1334,7 +1346,7 @@ namespace GridVids.ViewModels
                         nextSlot = VideoSlots[targetSlotIndex];
                     }
                 }
-                else if (SelectedRandomize == "Random" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
+                else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
                 {
                     if (_randomSlotQueue.Count == 0)
                     {
@@ -1361,11 +1373,28 @@ namespace GridVids.ViewModels
 
                 ClearPreloadedSlot();
 
-                var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
-                var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
-                if (newVideos.Count == 0) return;
+                string videoPath;
+                bool isMultipleSingleVidMode = IsSingleVidEnabled && (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple");
 
-                string videoPath = newVideos[0];
+                if (isMultipleSingleVidMode)
+                {
+                    if (string.IsNullOrEmpty(_currentSingleVidForMultiple))
+                    {
+                        var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                        var singleVids = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, isSingleVidMode: true);
+                        if (singleVids.Count > 0) _currentSingleVidForMultiple = singleVids[0];
+                    }
+
+                    if (string.IsNullOrEmpty(_currentSingleVidForMultiple)) return;
+                    videoPath = _currentSingleVidForMultiple;
+                }
+                else
+                {
+                    var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                    var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
+                    if (newVideos.Count == 0) return;
+                    videoPath = newVideos[0];
+                }
                 if (nextSlot.WindowHandle == IntPtr.Zero) return;
 
                 var proc = await _playbackService.PreloadMpvAsync(nextSlot, videoPath);
@@ -1450,24 +1479,7 @@ namespace GridVids.ViewModels
                     }
                 }
             }
-            else if (SelectedRandomize == "Random")
-            {
-                if (_randomSlotQueue.Count == 0)
-                {
-                    var indices = Enumerable.Range(0, VideoSlots.Count).OrderBy(_ => _rnd.Next()).ToList();
-                    foreach (var idx in indices) _randomSlotQueue.Enqueue(idx);
-                }
-
-                if (_randomSlotQueue.Count > 0)
-                {
-                    int targetSlotIndex = _randomSlotQueue.Dequeue();
-                    if (targetSlotIndex < VideoSlots.Count)
-                    {
-                        targetSlots.Add(VideoSlots[targetSlotIndex]);
-                    }
-                }
-            }
-            else if (SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
+            else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
             {
                 int totalSlots = VideoSlots.Count;
                 int rawCount = totalSlots > 1 ? _rnd.Next(2, totalSlots + 1) : 1;
@@ -1530,8 +1542,34 @@ namespace GridVids.ViewModels
 
                 if (slotsToFetch.Count > 0)
                 {
-                    var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
-                    var newVideos = await _videoLibraryService.GetRandomVideosAsync(slotsToFetch.Count, excludedPaths, IsSingleVidEnabled);
+                    List<string> newVideos;
+                    bool isMultipleSingleVid = IsSingleVidEnabled && (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple");
+                    
+                    if (isMultipleSingleVid)
+                    {
+                        if (string.IsNullOrEmpty(_currentSingleVidForMultiple))
+                        {
+                            var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                            var singleVids = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, isSingleVidMode: true);
+                            if (singleVids.Count > 0) _currentSingleVidForMultiple = singleVids[0];
+                        }
+
+                        if (!string.IsNullOrEmpty(_currentSingleVidForMultiple))
+                        {
+                            newVideos = Enumerable.Repeat(_currentSingleVidForMultiple, slotsToFetch.Count).ToList();
+                        }
+                        else
+                        {
+                            var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                            newVideos = await _videoLibraryService.GetRandomVideosAsync(slotsToFetch.Count, excludedPaths, IsSingleVidEnabled);
+                        }
+                    }
+                    else
+                    {
+                        var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                        newVideos = await _videoLibraryService.GetRandomVideosAsync(slotsToFetch.Count, excludedPaths, IsSingleVidEnabled);
+                    }
+
                     if (newVideos.Count > 0)
                     {
                         for (int i = 0; i < slotsToFetch.Count && i < newVideos.Count; i++)
@@ -1548,6 +1586,26 @@ namespace GridVids.ViewModels
                                 _playbackService.SwapPreloadedSlot(slot, proc, video);
                             }
                         }
+                    }
+                }
+
+                bool isMultipleSingleVidMode = IsSingleVidEnabled && (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple");
+                if (isMultipleSingleVidMode && targetSlots.Count > 0)
+                {
+                    foreach (var slot in targetSlots)
+                    {
+                        int slotIndex = VideoSlots.IndexOf(slot);
+                        if (slotIndex >= 0)
+                        {
+                            _slotsUpdatedInCycle.Add(slotIndex);
+                        }
+                    }
+
+                    if (_slotsUpdatedInCycle.Count >= VideoSlots.Count)
+                    {
+                        _slotsUpdatedInCycle.Clear();
+                        _currentSingleVidForMultiple = null;
+                        ClearPreloadedSlot();
                     }
                 }
             }
