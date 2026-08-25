@@ -208,6 +208,104 @@ public partial class MainWindow : Window
                 if (!vm.IsControlBarVisible) vm.IsControlBarVisible = true;
                 if (!vm.IsTitleBarVisible) vm.IsTitleBarVisible = true;
             }
+
+            // 4. Hide videos covering settings bar on hover
+            var controlBar = this.FindControl<Control>("ControlBar");
+            var titleBar = this.FindControl<Control>("TitleBar");
+            bool isControlBarActive = vm.IsControlBarVisible && controlBar != null && controlBar.IsVisible && controlBar.Bounds.Height > 0;
+
+            bool isMouseOverSettingsBar = false;
+            RECT settingsBarScreenRect = default;
+
+            if (isControlBarActive)
+            {
+                double topY = (titleBar != null && titleBar.IsVisible) ? titleBar.Bounds.Top : controlBar!.Bounds.Top;
+                double bottomY = controlBar!.Bounds.Bottom;
+
+                var topLeftScreen = this.PointToScreen(new Point(0, topY));
+                var bottomRightScreen = this.PointToScreen(new Point(this.Bounds.Width, bottomY));
+
+                settingsBarScreenRect = new RECT
+                {
+                    Left = topLeftScreen.X,
+                    Top = topLeftScreen.Y,
+                    Right = bottomRightScreen.X,
+                    Bottom = bottomRightScreen.Y
+                };
+
+                isMouseOverSettingsBar = lpPoint.X >= settingsBarScreenRect.Left &&
+                                         lpPoint.X <= settingsBarScreenRect.Right &&
+                                         lpPoint.Y >= settingsBarScreenRect.Top &&
+                                         lpPoint.Y <= settingsBarScreenRect.Bottom;
+            }
+
+            var allSlots = vm.VideoSlots
+                .Concat(vm.CollageSlots)
+                .Concat(vm.StackSlots)
+                .Concat(vm.ScrollSlots);
+
+            foreach (var slot in allSlots)
+            {
+                bool isCoveringSettingsBar = false;
+
+                if (isMouseOverSettingsBar)
+                {
+                    if (slot.WindowHandle != IntPtr.Zero)
+                    {
+                        if (GetWindowRect(slot.WindowHandle, out RECT videoRect))
+                        {
+                            isCoveringSettingsBar = videoRect.Left < settingsBarScreenRect.Right &&
+                                                    videoRect.Right > settingsBarScreenRect.Left &&
+                                                    videoRect.Top < settingsBarScreenRect.Bottom &&
+                                                    videoRect.Bottom > settingsBarScreenRect.Top;
+                        }
+                    }
+
+                    if (!isCoveringSettingsBar)
+                    {
+                        // Fallback: check canvas bounds relative to settings bar
+                        double row2Top = controlBar!.Bounds.Bottom;
+                        double slotClientTop = row2Top + slot.EffectiveY;
+                        double slotClientBottom = slotClientTop + slot.EffectiveHeight;
+                        double slotClientLeft = slot.EffectiveX;
+                        double slotClientRight = slotClientLeft + slot.EffectiveWidth;
+
+                        double settingsBarTop = (titleBar != null && titleBar.IsVisible) ? titleBar.Bounds.Top : controlBar.Bounds.Top;
+                        double settingsBarBottom = controlBar.Bounds.Bottom;
+
+                        bool yOverlap = slotClientTop < settingsBarBottom && slotClientBottom > settingsBarTop;
+                        bool xOverlap = slotClientLeft < this.Bounds.Width && slotClientRight > 0;
+
+                        if (yOverlap && xOverlap)
+                        {
+                            isCoveringSettingsBar = true;
+                        }
+                    }
+                }
+
+                if (isCoveringSettingsBar)
+                {
+                    if (!slot.IsHiddenBySettingsBar)
+                    {
+                        slot.IsHiddenBySettingsBar = true;
+                        if (slot.WindowHandle != IntPtr.Zero)
+                        {
+                            ShowWindow(slot.WindowHandle, 0); // SW_HIDE
+                        }
+                    }
+                }
+                else
+                {
+                    if (slot.IsHiddenBySettingsBar)
+                    {
+                        slot.IsHiddenBySettingsBar = false;
+                        if (slot.WindowHandle != IntPtr.Zero)
+                        {
+                            ShowWindow(slot.WindowHandle, 5); // SW_SHOW
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -221,11 +319,27 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")]
     internal static extern IntPtr GetParent(IntPtr hWnd);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT
     {
         public int X;
         public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
 
     private async Task<string?> ShowFolderPickerAsync()

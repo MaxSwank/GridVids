@@ -959,7 +959,7 @@ namespace GridVids.ViewModels
             {
                 _scrollTimer = new Avalonia.Threading.DispatcherTimer
                 {
-                    Interval = TimeSpan.FromMilliseconds(33) // ~30 FPS smooth animation
+                    Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS ultra-smooth animation
                 };
                 _scrollTimer.Tick += ScrollTimer_Tick;
             }
@@ -1032,23 +1032,26 @@ namespace GridVids.ViewModels
 
             foreach (var s in newSlots) ScrollSlots.Add(s);
 
-            // Wait for window handle binding on UI thread
-            int retries = 0;
-            while (newSlots.Any(s => s.WindowHandle == IntPtr.Zero) && retries < 30)
+            // Offload handle polling and MPV process startup to background task to keep UI thread at 60 FPS
+            _ = Task.Run(async () =>
             {
-                await Task.Delay(50);
-                retries++;
-            }
-
-            var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
-            if (validSlots.Count > 0)
-            {
-                var videos = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, null, IsSingleVidEnabled);
-                if (videos.Count > 0)
+                int retries = 0;
+                while (newSlots.Any(s => s.WindowHandle == IntPtr.Zero) && retries < 40)
                 {
-                    await _playbackService.PlayAsync(validSlots, videos);
+                    await Task.Delay(25);
+                    retries++;
                 }
-            }
+
+                var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+                if (validSlots.Count > 0)
+                {
+                    var videos = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, null, IsSingleVidEnabled);
+                    if (videos.Count > 0)
+                    {
+                        await _playbackService.PlayAsync(validSlots, videos);
+                    }
+                }
+            });
         }
 
         private void ScrollTimer_Tick(object? sender, EventArgs e)
@@ -1058,7 +1061,7 @@ namespace GridVids.ViewModels
             var now = DateTime.Now;
             double dt = (now - _lastScrollTick).TotalSeconds;
             _lastScrollTick = now;
-            if (dt > 0.1) dt = 0.1;
+            if (dt > 0.05) dt = 0.05; // Cap delta time to prevent frame jumps
 
             double dy = ScrollSpeed * dt;
 
@@ -1098,10 +1101,7 @@ namespace GridVids.ViewModels
 
                 _ = Task.Run(async () =>
                 {
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
-                    {
-                        await SpawnScrollRowAsync(spawnY, cellW, cellH, curCols);
-                    });
+                    await SpawnScrollRowAsync(spawnY, cellW, cellH, curCols);
                     _isSpawningScrollRow = false;
                 });
             }

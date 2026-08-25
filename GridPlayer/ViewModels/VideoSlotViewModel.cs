@@ -19,7 +19,14 @@ namespace GridVids.ViewModels
         }
 
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsEffectiveVisible))]
         private bool _isVisible = true;
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsEffectiveVisible))]
+        private bool _isHiddenBySettingsBar;
+
+        public bool IsEffectiveVisible => IsVisible && !IsHiddenBySettingsBar;
 
         public System.Diagnostics.Process? CurrentProcess { get; set; }
         public string CurrentVideoPath { get; set; } = string.Empty;

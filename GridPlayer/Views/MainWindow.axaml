@@ -20,6 +20,153 @@
     </Design.DataContext>
 
     <Grid RowDefinitions="Auto,Auto,*">
+        <!-- Video Grid -->
+        <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding IsGridVisible}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="IsVisible" Value="{Binding IsEffectiveVisible}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Transparent" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="Embedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #Embedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Stack Overlay View -->
+        <ItemsControl Grid.Row="2" Name="StackContainer" ItemsSource="{Binding StackSlots}" IsVisible="{Binding IsStackableEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Transparent"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                    <Setter Property="IsVisible" Value="{Binding IsEffectiveVisible}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Black" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="StackEmbedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #StackEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Scroll View -->
+        <ItemsControl Grid.Row="2" Name="ScrollContainer" ItemsSource="{Binding ScrollSlots}" IsVisible="{Binding IsScrollEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Black" ClipToBounds="True"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                    <Setter Property="IsVisible" Value="{Binding IsEffectiveVisible}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Black" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="ScrollEmbedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #ScrollEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Collage View -->
+        <ItemsControl Grid.Row="2" Name="CollageContainer" ItemsSource="{Binding CollageSlots}" IsVisible="{Binding IsCollageEnabled}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Canvas Background="Black"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
+                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
+                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
+                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
+                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
+                    <Setter Property="IsVisible" Value="{Binding IsEffectiveVisible}"/>
+                </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Grid Background="Black" Margin="0">
+                        <controls:NativeEmbeddingControl 
+                            x:Name="CollageEmbedder"
+                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
+                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #CollageEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
+                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <!-- Custom Title Bar -->
         <Grid Grid.Row="0" Height="32" Background="#1a1a1a" IsVisible="{Binding IsTitleBarVisible}" ColumnDefinitions="*,Auto" Name="TitleBar" ZIndex="1000">
             <TextBlock Text="{Binding Title, RelativeSource={RelativeSource FindAncestor, AncestorType=Window}}"
@@ -30,8 +177,9 @@
                 <Button Content="✕" Width="46" VerticalAlignment="Stretch" Background="Transparent" Foreground="#ffffff" Name="BtnClose" BorderThickness="0"/>
             </StackPanel>
         </Grid>
+
         <!-- Control Bar -->
-        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#333333" BorderThickness="0,0,0,1" IsVisible="{Binding IsControlBarVisible}" ZIndex="1000">
+        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#333333" BorderThickness="0,0,0,1" IsVisible="{Binding IsControlBarVisible}" ZIndex="1000" Name="ControlBar">
             <WrapPanel Orientation="Horizontal" Margin="10">
                 <WrapPanel.Styles>
                     <Style Selector="WrapPanel > :is(Control)">
@@ -85,150 +233,5 @@
                 <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}"/>
             </WrapPanel>
         </Border>
-
-        <!-- Video Grid -->
-        <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding IsGridVisible}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <UniformGrid Rows="{Binding Rows}" Columns="{Binding Columns}"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Styles>
-                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
-                    <Setter Property="IsVisible" Value="{Binding IsVisible}"/>
-                </Style>
-            </ItemsControl.Styles>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Background="Transparent" Margin="0">
-                        <controls:NativeEmbeddingControl 
-                            x:Name="Embedder"
-                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #Embedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
-                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <!-- Stack Overlay View -->
-        <ItemsControl Grid.Row="2" Name="StackContainer" ItemsSource="{Binding StackSlots}" IsVisible="{Binding IsStackableEnabled}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas Background="Transparent"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Styles>
-                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
-                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
-                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
-                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
-                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
-                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
-                </Style>
-            </ItemsControl.Styles>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Background="Black" Margin="0">
-                        <controls:NativeEmbeddingControl 
-                            x:Name="StackEmbedder"
-                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #StackEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
-                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <!-- Scroll View -->
-        <ItemsControl Grid.Row="2" Name="ScrollContainer" ItemsSource="{Binding ScrollSlots}" IsVisible="{Binding IsScrollEnabled}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas Background="Black" ClipToBounds="True"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Styles>
-                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
-                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
-                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
-                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
-                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
-                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
-                </Style>
-            </ItemsControl.Styles>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Background="Black" Margin="0">
-                        <controls:NativeEmbeddingControl 
-                            x:Name="ScrollEmbedder"
-                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #ScrollEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
-                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <!-- Collage View -->
-        <ItemsControl Grid.Row="2" Name="CollageContainer" ItemsSource="{Binding CollageSlots}" IsVisible="{Binding IsCollageEnabled}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas Background="Black"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Styles>
-                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
-                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
-                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
-                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
-                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
-                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
-                    <!-- Add ZIndex if needed, or order in collection determines it -->
-                </Style>
-            </ItemsControl.Styles>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Background="Black" Margin="0">
-                        <controls:NativeEmbeddingControl 
-                            x:Name="CollageEmbedder"
-                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #CollageEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
-                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
     </Grid>
 </Window>
