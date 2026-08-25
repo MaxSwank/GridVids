@@ -17,6 +17,8 @@ namespace GridVids.Models
         public bool IsSloMoEnabled { get; set; } = false;
         public bool IsStackableEnabled { get; set; } = false;
         public bool IsScrollEnabled { get; set; } = false;
+        public bool IsCollageEnabled { get; set; } = false;
+        public string SelectedDisplayMode { get; set; } = "Grid";
     }
 }
 

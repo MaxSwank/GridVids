@@ -19,6 +19,25 @@
         <vm:MainViewModel/>
     </Design.DataContext>
 
+    <Window.Styles>
+        <Style Selector="NumericUpDown /template/ TextBox">
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="NumericUpDown:disabled">
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Opacity" Value="0.9"/>
+        </Style>
+        <Style Selector="NumericUpDown:disabled /template/ TextBox">
+            <Setter Property="Foreground" Value="#ffffff"/>
+            <Setter Property="Opacity" Value="0.9"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+    </Window.Styles>
+
     <Grid RowDefinitions="Auto,Auto,*">
         <!-- Video Grid -->
         <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding IsGridVisible}">
@@ -179,58 +198,64 @@
         </Grid>
 
         <!-- Control Bar -->
-        <Border Grid.Row="1" Background="#1e1e1e" BorderBrush="#333333" BorderThickness="0,0,0,1" IsVisible="{Binding IsControlBarVisible}" ZIndex="1000" Name="ControlBar">
-            <WrapPanel Orientation="Horizontal" Margin="10">
-                <WrapPanel.Styles>
-                    <Style Selector="WrapPanel > :is(Control)">
-                        <Setter Property="Margin" Value="0,3,10,3"/>
-                        <Setter Property="VerticalAlignment" Value="Center"/>
-                    </Style>
-                </WrapPanel.Styles>
+        <Border Grid.Row="1" Background="#181818" BorderBrush="#2d2d2d" BorderThickness="0,0,0,1" IsVisible="{Binding IsControlBarVisible}" ZIndex="1000" Name="ControlBar" Padding="8,6">
+            <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <!-- Group 1: Media & Layout -->
+                <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="📁 MEDIA &amp; LAYOUT" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder" Padding="8,4"/>
+                        <TextBlock Text="{Binding VideoPath}" MaxWidth="140" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="#d1d1d6" ToolTip.Tip="{Binding VideoPath}"/>
+                        <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
+                        <TextBlock Text="Rows:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
+                        <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                        <TextBlock Text="Cols:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
+                        <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                    </StackPanel>
+                </Border>
 
-                <!-- Folder Selector -->
-                <Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder"/>
-                <TextBlock Text="{Binding VideoPath}" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
-                
-                <!-- Grid Size Controls -->
-                <TextBlock Text="Rows:"/>
-                <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" IsEnabled="{Binding AreManualControlsEnabled}"/>
-                <TextBlock Text="Cols:"/>
-                <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <!-- Group 2: Display Mode -->
+                <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="🎬 DISPLAY MODE" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <ComboBox ItemsSource="{Binding DisplayModeOptions}" SelectedItem="{Binding SelectedDisplayMode}" Width="135" Padding="6,4"/>
+                        <!-- Contextual Auto-Swap Controls -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsSwapEnabled}" VerticalAlignment="Center">
+                            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="70"/>
+                            <TextBlock Text="↔" VerticalAlignment="Center" Foreground="#aaaaaa"/>
+                            <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="70"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
 
-                <!-- Randomize Controls -->
-                <TextBlock Text="Randomize:" IsEnabled="{Binding IsRandomizeEnabled}"/>
-                <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding IsRandomizeEnabled}"/>
+                <!-- Group 3: Randomize & Timing -->
+                <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="⚡ RANDOMIZE &amp; TIMING" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBlock Text="Randomize:" VerticalAlignment="Center" IsEnabled="{Binding IsRandomizeEnabled}" Foreground="#e5e5ea"/>
+                        <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="110" IsEnabled="{Binding IsRandomizeEnabled}"/>
+                        <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}" Foreground="#e5e5ea"/>
+                        <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="65" IsEnabled="{Binding IsDelayEnabled}"/>
+                    </StackPanel>
+                </Border>
 
-                <!-- Stackable Control (Only visible for 2x2 or 2x4) -->
-                <CheckBox Content="Stackable" IsChecked="{Binding IsStackableEnabled}" IsVisible="{Binding IsStackableVisible}"/>
-
-                <!-- Scroll Control (Only visible for 2x4) -->
-                <CheckBox Content="Scroll" IsChecked="{Binding IsScrollEnabled}" IsVisible="{Binding IsScrollVisible}"/>
-
-                <!-- Swap Controls -->
-                <CheckBox Content="Swap" IsChecked="{Binding IsSwapEnabled}"/>
-                
-                <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
-                <TextBlock Text="-"/>
-                <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="80" IsEnabled="{Binding IsSwapEnabled}"/>
-
-                <TextBlock Text="Delay:" IsEnabled="{Binding IsDelayEnabled}"/>
-                <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="70" IsEnabled="{Binding IsDelayEnabled}"/>
-
-                <!-- Audio & Playback Options -->
-                <CheckBox Content="Mute" IsChecked="{Binding IsMuted}"/>
-                <StackPanel Orientation="Horizontal" Spacing="5" IsVisible="{Binding !IsMuted}">
-                    <TextBlock Text="Vol:"/>
-                    <Slider Value="{Binding Volume}" Minimum="0" Maximum="100" Width="90"/>
-                    <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Width="35" FontSize="11"/>
-                </StackPanel>
-
-                <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}"/>
-                <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}"/>
-                <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}"/>
-                <CheckBox Content="Collage" IsChecked="{Binding IsCollageEnabled}"/>
-                <CheckBox Content="Single Vid Mode" IsChecked="{Binding IsSingleVidEnabled}"/>
+                <!-- Group 4: Audio & Playback Options -->
+                <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="🔊 OPTIONS" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <CheckBox Content="Mute" IsChecked="{Binding IsMuted}" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding !IsMuted}" VerticalAlignment="Center">
+                            <TextBlock Text="Vol:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
+                            <Slider Value="{Binding Volume}" Minimum="0" Maximum="100" Width="75" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Volume, StringFormat='{}{0}%'}" Width="30" FontSize="11" VerticalAlignment="Center" Foreground="#cccccc"/>
+                        </StackPanel>
+                        <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
+                        <CheckBox Content="Single Vid" IsChecked="{Binding IsSingleVidEnabled}" VerticalAlignment="Center"/>
+                        <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center"/>
+                        <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}" VerticalAlignment="Center"/>
+                        <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
             </WrapPanel>
         </Border>
     </Grid>

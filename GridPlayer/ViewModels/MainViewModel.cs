@@ -42,9 +42,53 @@ namespace GridVids.ViewModels
             _selectedGrid2 = !string.IsNullOrEmpty(settings.SelectedGrid2) ? settings.SelectedGrid2 : "3x3";
             _selectedRandomize = !string.IsNullOrEmpty(settings.SelectedRandomize) ? settings.SelectedRandomize : "None";
             _isStackableEnabled = settings.IsStackableEnabled;
-            _isScrollEnabled = false; // Scrollable is unchecked by default on launch
+            _isScrollEnabled = settings.IsScrollEnabled;
+            _isCollageEnabled = settings.IsCollageEnabled;
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
+
+            if (!string.IsNullOrEmpty(settings.SelectedDisplayMode))
+            {
+                _selectedDisplayMode = settings.SelectedDisplayMode;
+                switch (settings.SelectedDisplayMode)
+                {
+                    case "Auto-Swap":
+                        _isSwapEnabled = true;
+                        _isStackableEnabled = false;
+                        _isScrollEnabled = false;
+                        _isCollageEnabled = false;
+                        break;
+                    case "Stackable":
+                        _isSwapEnabled = false;
+                        _isStackableEnabled = true;
+                        _isScrollEnabled = false;
+                        _isCollageEnabled = false;
+                        break;
+                    case "Scrolling Wall":
+                        _isSwapEnabled = false;
+                        _isStackableEnabled = false;
+                        _isScrollEnabled = true;
+                        _isCollageEnabled = false;
+                        break;
+                    case "Collage":
+                        _isSwapEnabled = false;
+                        _isStackableEnabled = false;
+                        _isScrollEnabled = false;
+                        _isCollageEnabled = true;
+                        break;
+                    case "Grid":
+                    default:
+                        _isSwapEnabled = false;
+                        _isStackableEnabled = false;
+                        _isScrollEnabled = false;
+                        _isCollageEnabled = false;
+                        break;
+                }
+            }
+            else
+            {
+                SyncSelectedDisplayModeFromFlags();
+            }
 
             _isSloMoEnabled = settings.IsSloMoEnabled;
 
@@ -204,7 +248,9 @@ namespace GridVids.ViewModels
                 SelectedDelay = (firstRun && SelectedDelay == 0) ? _restoredDelay : SelectedDelay,
                 SelectedRandomize = SelectedRandomize,
                 IsStackableEnabled = IsStackableEnabled,
-                IsScrollEnabled = IsScrollEnabled
+                IsScrollEnabled = IsScrollEnabled,
+                IsCollageEnabled = IsCollageEnabled,
+                SelectedDisplayMode = SelectedDisplayMode
             };
             _settingsService.SaveSettings(settings);
         }
@@ -219,7 +265,7 @@ namespace GridVids.ViewModels
             if (value)
             {
                 if (IsScrollEnabled) IsScrollEnabled = false;
-                // Stop Grid Playback if running (though we can keep the grid slots alive in background? No, better to stop to save resources)
+                // Stop Grid Playback if running
                 if (IsVideoPlaying) Stop();
                 _ = StartCollage();
             }
@@ -227,6 +273,7 @@ namespace GridVids.ViewModels
             {
                 StopCollage();
             }
+            SyncSelectedDisplayModeFromFlags();
         }
 
         [ObservableProperty]
@@ -714,7 +761,7 @@ namespace GridVids.ViewModels
                 SelectedDelay = _restoredDelay;
             }
 
-            if (!IsStackableEnabled)
+            if (!IsStackableEnabled && !IsSwapEnabled)
             {
                 _ = PreloadNextSlotAsync();
             }
@@ -766,9 +813,83 @@ namespace GridVids.ViewModels
             ScrollSlots.Clear();
         }
 
+        public ObservableCollection<string> DisplayModeOptions { get; } = new() { "Grid", "Auto-Swap", "Stackable", "Scrolling Wall", "Collage" };
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<double> DelayOptions { get; } = new();
         public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Multiple" };
+
+        private bool _isUpdatingDisplayMode = false;
+
+        [ObservableProperty]
+        private string _selectedDisplayMode = "Grid";
+
+        partial void OnSelectedDisplayModeChanged(string value)
+        {
+            if (_isUpdatingDisplayMode) return;
+            _isUpdatingDisplayMode = true;
+
+            try
+            {
+                switch (value)
+                {
+                    case "Auto-Swap":
+                        IsCollageEnabled = false;
+                        IsStackableEnabled = false;
+                        IsScrollEnabled = false;
+                        IsSwapEnabled = true;
+                        SelectedDelay = 10.0;
+                        break;
+                    case "Stackable":
+                        IsCollageEnabled = false;
+                        IsSwapEnabled = false;
+                        IsScrollEnabled = false;
+                        IsStackableEnabled = true;
+                        break;
+                    case "Scrolling Wall":
+                        IsCollageEnabled = false;
+                        IsSwapEnabled = false;
+                        IsStackableEnabled = false;
+                        IsScrollEnabled = true;
+                        break;
+                    case "Collage":
+                        IsSwapEnabled = false;
+                        IsStackableEnabled = false;
+                        IsScrollEnabled = false;
+                        IsCollageEnabled = true;
+                        break;
+                    case "Grid":
+                    default:
+                        IsSwapEnabled = false;
+                        IsStackableEnabled = false;
+                        IsScrollEnabled = false;
+                        IsCollageEnabled = false;
+                        break;
+                }
+                SaveSettings();
+            }
+            finally
+            {
+                _isUpdatingDisplayMode = false;
+            }
+        }
+
+        private void SyncSelectedDisplayModeFromFlags()
+        {
+            if (_isUpdatingDisplayMode) return;
+            _isUpdatingDisplayMode = true;
+            try
+            {
+                if (IsCollageEnabled) SelectedDisplayMode = "Collage";
+                else if (IsScrollEnabled) SelectedDisplayMode = "Scrolling Wall";
+                else if (IsStackableEnabled) SelectedDisplayMode = "Stackable";
+                else if (IsSwapEnabled) SelectedDisplayMode = "Auto-Swap";
+                else SelectedDisplayMode = "Grid";
+            }
+            finally
+            {
+                _isUpdatingDisplayMode = false;
+            }
+        }
 
         private void InitializeOptions()
         {
@@ -796,11 +917,13 @@ namespace GridVids.ViewModels
             {
                 if (IsStackableEnabled) IsStackableEnabled = false;
                 if (IsScrollEnabled) IsScrollEnabled = false;
+                SelectedDelay = 10.0;
                 _swapTimer?.Start();
             }
             else _swapTimer?.Stop();
             UpdateRandomizeTimer();
             UpdateStackTimer();
+            SyncSelectedDisplayModeFromFlags();
         }
 
         [ObservableProperty]
@@ -927,6 +1050,7 @@ namespace GridVids.ViewModels
             if (value && IsScrollEnabled) IsScrollEnabled = false;
             UpdateStackTimer();
             UpdateRandomizeTimer();
+            SyncSelectedDisplayModeFromFlags();
         }
 
         [ObservableProperty]
@@ -967,6 +1091,7 @@ namespace GridVids.ViewModels
                 }
             }
             UpdateRandomizeTimer();
+            SyncSelectedDisplayModeFromFlags();
         }
 
         private Avalonia.Threading.DispatcherTimer? _scrollTimer;
@@ -1924,6 +2049,9 @@ namespace GridVids.ViewModels
 
         private async void SwapTimer_Tick(object? sender, EventArgs e)
         {
+            if (!IsSwapEnabled || !IsVideoPlaying) return;
+            if (string.IsNullOrWhiteSpace(VideoPath)) return;
+
             _isShowingGrid1 = !_isShowingGrid1;
             string targetSize = _isShowingGrid1 ? SelectedGrid1 : SelectedGrid2;
 
@@ -1936,11 +2064,37 @@ namespace GridVids.ViewModels
                 try { Rows = r; Columns = c; }
                 finally { _suppressAutoRun = false; }
 
-                UpdateVisibility();
-
-                // Trigger background refresh for the now-hidden slots
-                _ = RefreshHiddenSlots();
+                UpdateGrid();
             }
+
+            // Allow Avalonia a brief tick to instantiate any new slot HWNDs if total slot count expanded
+            await Task.Delay(100);
+
+            var activeSlots = VideoSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+            if (activeSlots.Count == 0) return;
+
+            var excludedPaths = activeSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+            var newVideos = await _videoLibraryService.GetRandomVideosAsync(activeSlots.Count, excludedPaths, IsSingleVidEnabled);
+            if (newVideos.Count == 0) return;
+
+            var tasks = new List<Task>();
+            for (int i = 0; i < activeSlots.Count && i < newVideos.Count; i++)
+            {
+                var slot = activeSlots[i];
+                var videoPath = newVideos[i];
+                tasks.Add(Task.Run(async () =>
+                {
+                    var proc = await _playbackService.PreloadMpvAsync(slot, videoPath);
+                    if (proc != null)
+                    {
+                        // Wait 1.0 second so new MPV instance renders initial frames directly into the active HWND over the old process
+                        await Task.Delay(1000);
+                        _playbackService.SwapPreloadedSlot(slot, proc, videoPath);
+                    }
+                }));
+            }
+
+            await Task.WhenAll(tasks);
         }
 
         private void EnsureSlotCount(int total)
