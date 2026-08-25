@@ -45,6 +45,8 @@ namespace GridVids.ViewModels
             _isScrollEnabled = settings.IsScrollEnabled;
             _isCollageEnabled = settings.IsCollageEnabled;
             _scrollSpeed = settings.ScrollSpeed > 0 ? settings.ScrollSpeed : 80.0;
+            _selectedScrollDirection = !string.IsNullOrEmpty(settings.SelectedScrollDirection) ? settings.SelectedScrollDirection : "Up";
+            _isScrollDown = _selectedScrollDirection == "Down";
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
@@ -134,6 +136,17 @@ namespace GridVids.ViewModels
 
         partial void OnRowsChanged(int value)
         {
+            if (!_suppressAutoRun)
+            {
+                int bestCols = CalculateBestColumnsFor16x9(value);
+                if (bestCols != Columns)
+                {
+                    _suppressAutoRun = true;
+                    try { Columns = bestCols; }
+                    finally { _suppressAutoRun = false; }
+                }
+            }
+
             UpdateGrid();
             SaveSettings();
             if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
@@ -148,6 +161,35 @@ namespace GridVids.ViewModels
             {
                 _ = ExecutePlayback();
             }
+        }
+
+        private int CalculateBestColumnsFor16x9(int rows)
+        {
+            if (rows <= 0) return 2;
+
+            double containerW = ContainerWidth > 100 ? ContainerWidth : 1600.0;
+            double containerH = ContainerHeight > 100 ? ContainerHeight : 900.0;
+
+            const double targetRatio = 16.0 / 9.0;
+
+            int bestCols = 1;
+            double minDiff = double.MaxValue;
+
+            for (int c = 1; c <= 8; c++)
+            {
+                double cellW = containerW / c;
+                double cellH = containerH / rows;
+                double ratio = cellW / cellH;
+
+                double diff = Math.Abs(ratio - targetRatio);
+                if (diff < minDiff)
+                {
+                    minDiff = diff;
+                    bestCols = c;
+                }
+            }
+
+            return bestCols;
         }
 
         [ObservableProperty]
@@ -252,7 +294,8 @@ namespace GridVids.ViewModels
                 IsScrollEnabled = IsScrollEnabled,
                 IsCollageEnabled = IsCollageEnabled,
                 SelectedDisplayMode = SelectedDisplayMode,
-                ScrollSpeed = ScrollSpeed
+                ScrollSpeed = ScrollSpeed,
+                SelectedScrollDirection = SelectedScrollDirection
             };
             _settingsService.SaveSettings(settings);
         }
@@ -953,7 +996,7 @@ namespace GridVids.ViewModels
 
             if (value == "Multiple" && IsScrollEnabled)
             {
-                SelectedDelay = 3.0;
+                SelectedDelay = 1.0;
             }
 
             SaveSettings();
@@ -1041,9 +1084,9 @@ namespace GridVids.ViewModels
             }
         }
 
-        public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsScrollEnabled;
+        public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled;
         public bool IsRandomizeEnabled => !IsSwapEnabled && !IsStackableEnabled;
-        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled || (IsScrollEnabled && SelectedRandomize == "Multiple");
+        public bool IsDelayEnabled => IsSwapEnabled || (!IsScrollEnabled && AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled || (IsScrollEnabled && SelectedRandomize == "Multiple");
 
         public bool IsStackableVisible => !IsCollageEnabled && !IsSwapEnabled && (Rows == 2 && (Columns == 2 || Columns == 4));
         public bool IsScrollVisible => !IsCollageEnabled && !IsSwapEnabled && IsFullScreen;
@@ -1090,7 +1133,7 @@ namespace GridVids.ViewModels
 
                 if (SelectedRandomize == "Multiple")
                 {
-                    SelectedDelay = 3.0;
+                    SelectedDelay = 1.0;
                 }
                 else
                 {
@@ -1118,7 +1161,24 @@ namespace GridVids.ViewModels
         private Avalonia.Threading.DispatcherTimer? _scrollTimer;
         private DateTime _lastScrollTick;
         private bool _isSpawningScrollRow = false;
-        private double _nextScrollRowY = 0;
+        public ObservableCollection<string> ScrollDirectionOptions { get; } = new() { "Up", "Down" };
+
+        [ObservableProperty]
+        private string _selectedScrollDirection = "Up";
+        partial void OnSelectedScrollDirectionChanged(string value)
+        {
+            IsScrollDown = value == "Down";
+            SaveSettings();
+        }
+
+        [ObservableProperty]
+        private bool _isScrollDown = false;
+        partial void OnIsScrollDownChanged(bool value)
+        {
+            SelectedScrollDirection = value ? "Down" : "Up";
+            SaveSettings();
+        }
+
         [ObservableProperty]
         private double _scrollSpeed = 80.0;
 
@@ -1156,10 +1216,18 @@ namespace GridVids.ViewModels
             {
                 await SpawnScrollRowAsync(r * cellH, cellW, cellH, curCols);
             }
-            // Spawn 1 pre-loading row below viewport
-            _ = SpawnScrollRowAsync(curRows * cellH, cellW, cellH, curCols);
 
-            _nextScrollRowY = (curRows + 1) * cellH;
+            if (SelectedScrollDirection == "Down")
+            {
+                // Spawn 1 pre-loading row above viewport
+                _ = SpawnScrollRowAsync(-cellH, cellW, cellH, curCols);
+            }
+            else
+            {
+                // Spawn 1 pre-loading row below viewport
+                _ = SpawnScrollRowAsync(curRows * cellH, cellW, cellH, curCols);
+            }
+
             _lastScrollTick = DateTime.Now;
             _scrollTimer.Start();
         }
@@ -1237,7 +1305,7 @@ namespace GridVids.ViewModels
             _lastScrollTick = now;
             if (dt > 0.05) dt = 0.05; // Cap delta time to prevent frame jumps
 
-            double dy = ScrollSpeed * dt;
+            double delta = ScrollSpeed * dt;
 
             int curRows = Rows > 0 ? Rows : 2;
             int curCols = Columns > 0 ? Columns : 4;
@@ -1247,16 +1315,29 @@ namespace GridVids.ViewModels
             double cellW = effectiveW / (double)curCols;
             double cellH = effectiveH / (double)curRows;
 
-            // 1. Move all slots up
+            bool isDown = SelectedScrollDirection == "Down";
+            double dy = isDown ? delta : -delta;
+
+            // 1. Move all slots
             var slotsCopy = ScrollSlots.ToList();
             foreach (var slot in slotsCopy)
             {
-                slot.CollageY -= dy;
+                slot.CollageY += dy;
             }
-            _nextScrollRowY -= dy;
 
-            // 2. Off-screen cleanup: close & remove slots that scrolled completely off the top
-            var offScreen = ScrollSlots.Where(s => (s.CollageY + s.CollageHeight) <= 0).ToList();
+            // 2. Off-screen cleanup
+            List<VideoSlotViewModel> offScreen;
+            if (isDown)
+            {
+                // Scrolled completely off the bottom
+                offScreen = ScrollSlots.Where(s => s.CollageY >= effectiveH).ToList();
+            }
+            else
+            {
+                // Scrolled completely off the top
+                offScreen = ScrollSlots.Where(s => (s.CollageY + s.CollageHeight) <= 0).ToList();
+            }
+
             if (offScreen.Count > 0)
             {
                 foreach (var slot in offScreen)
@@ -1266,18 +1347,37 @@ namespace GridVids.ViewModels
                 _playbackService.Stop(offScreen);
             }
 
-            // 3. Preload next row below viewport
-            if (!_isSpawningScrollRow && _nextScrollRowY <= effectiveH + (cellH * 0.5))
+            // 3. Preload next row
+            if (!_isSpawningScrollRow && ScrollSlots.Count > 0)
             {
-                _isSpawningScrollRow = true;
-                double spawnY = _nextScrollRowY;
-                _nextScrollRowY += cellH;
-
-                _ = Task.Run(async () =>
+                if (isDown)
                 {
-                    await SpawnScrollRowAsync(spawnY, cellW, cellH, curCols);
-                    _isSpawningScrollRow = false;
-                });
+                    double minY = ScrollSlots.Min(s => s.CollageY);
+                    if (minY >= -cellH * 0.5)
+                    {
+                        _isSpawningScrollRow = true;
+                        double spawnY = minY - cellH;
+                        _ = Task.Run(async () =>
+                        {
+                            await SpawnScrollRowAsync(spawnY, cellW, cellH, curCols);
+                            _isSpawningScrollRow = false;
+                        });
+                    }
+                }
+                else
+                {
+                    double maxY = ScrollSlots.Max(s => s.CollageY);
+                    if (maxY + cellH <= effectiveH + (cellH * 0.5))
+                    {
+                        _isSpawningScrollRow = true;
+                        double spawnY = maxY + cellH;
+                        _ = Task.Run(async () =>
+                        {
+                            await SpawnScrollRowAsync(spawnY, cellW, cellH, curCols);
+                            _isSpawningScrollRow = false;
+                        });
+                    }
+                }
             }
         }
 

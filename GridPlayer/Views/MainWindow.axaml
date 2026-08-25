@@ -231,6 +231,8 @@
                             <TextBlock Text="Speed:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
                             <Slider Value="{Binding ScrollSpeed}" Minimum="20" Maximum="300" Width="90" VerticalAlignment="Center"/>
                             <TextBlock Text="{Binding ScrollSpeed, StringFormat='{}{0:0}'}" Width="26" FontSize="11" VerticalAlignment="Center" Foreground="#cccccc"/>
+                            <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
+                            <ToggleSwitch IsChecked="{Binding IsScrollDown}" OffContent="Up" OnContent="Down" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
