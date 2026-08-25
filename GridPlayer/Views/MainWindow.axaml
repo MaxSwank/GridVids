@@ -225,6 +225,13 @@
                             <TextBlock Text="↔" VerticalAlignment="Center" Foreground="#aaaaaa"/>
                             <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid2}" Width="70"/>
                         </StackPanel>
+                        <!-- Contextual Scroll Speed Controls -->
+                        <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsScrollEnabled}" VerticalAlignment="Center">
+                            <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
+                            <TextBlock Text="Speed:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
+                            <Slider Value="{Binding ScrollSpeed}" Minimum="20" Maximum="300" Width="90" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding ScrollSpeed, StringFormat='{}{0:0}'}" Width="26" FontSize="11" VerticalAlignment="Center" Foreground="#cccccc"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 

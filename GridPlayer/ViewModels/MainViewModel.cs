@@ -44,6 +44,7 @@ namespace GridVids.ViewModels
             _isStackableEnabled = settings.IsStackableEnabled;
             _isScrollEnabled = settings.IsScrollEnabled;
             _isCollageEnabled = settings.IsCollageEnabled;
+            _scrollSpeed = settings.ScrollSpeed > 0 ? settings.ScrollSpeed : 80.0;
             _restoredDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10;
             _selectedDelay = 0; // Start with 0 (no delay) for immediate first action
 
@@ -250,7 +251,8 @@ namespace GridVids.ViewModels
                 IsStackableEnabled = IsStackableEnabled,
                 IsScrollEnabled = IsScrollEnabled,
                 IsCollageEnabled = IsCollageEnabled,
-                SelectedDisplayMode = SelectedDisplayMode
+                SelectedDisplayMode = SelectedDisplayMode,
+                ScrollSpeed = ScrollSpeed
             };
             _settingsService.SaveSettings(settings);
         }
@@ -846,10 +848,21 @@ namespace GridVids.ViewModels
                         IsStackableEnabled = true;
                         break;
                     case "Scrolling Wall":
-                        IsCollageEnabled = false;
-                        IsSwapEnabled = false;
-                        IsStackableEnabled = false;
-                        IsScrollEnabled = true;
+                        if (!IsFullScreen)
+                        {
+                            IsScrollEnabled = false;
+                            IsSwapEnabled = false;
+                            IsStackableEnabled = false;
+                            IsCollageEnabled = false;
+                            SelectedDisplayMode = "Grid";
+                        }
+                        else
+                        {
+                            IsCollageEnabled = false;
+                            IsSwapEnabled = false;
+                            IsStackableEnabled = false;
+                            IsScrollEnabled = true;
+                        }
                         break;
                     case "Collage":
                         IsSwapEnabled = false;
@@ -1024,6 +1037,7 @@ namespace GridVids.ViewModels
             if (!value && IsScrollEnabled)
             {
                 IsScrollEnabled = false;
+                SyncSelectedDisplayModeFromFlags();
             }
         }
 
@@ -1065,6 +1079,13 @@ namespace GridVids.ViewModels
             SaveSettings();
             if (value)
             {
+                if (!IsFullScreen)
+                {
+                    IsScrollEnabled = false;
+                    SyncSelectedDisplayModeFromFlags();
+                    return;
+                }
+
                 if (IsStackableEnabled) IsStackableEnabled = false;
 
                 if (SelectedRandomize == "Multiple")
@@ -1098,7 +1119,13 @@ namespace GridVids.ViewModels
         private DateTime _lastScrollTick;
         private bool _isSpawningScrollRow = false;
         private double _nextScrollRowY = 0;
-        private const double ScrollSpeed = 80.73; // Increased by 30% (from 62.1 to 80.73)
+        [ObservableProperty]
+        private double _scrollSpeed = 80.0;
+
+        partial void OnScrollSpeedChanged(double value)
+        {
+            SaveSettings();
+        }
 
         private async void StartScroll()
         {

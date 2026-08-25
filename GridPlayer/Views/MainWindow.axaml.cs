@@ -55,9 +55,25 @@ public partial class MainWindow : Window
             GridVids.Services.PlaybackService.KillAllMpvProcesses();
         };
 
+        this.Opened += (s, e) =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                if (vm.SelectedDisplayMode == "Scrolling Wall" || vm.IsScrollEnabled)
+                {
+                    WindowState = WindowState.Maximized;
+                }
+                UpdateFullScreenState();
+            }
+        };
+
         if (DataContext is MainViewModel vm)
         {
             vm.ShowFolderPickerAsync = ShowFolderPickerAsync;
+            if (vm.SelectedDisplayMode == "Scrolling Wall" || vm.IsScrollEnabled)
+            {
+                WindowState = WindowState.Maximized;
+            }
             UpdateFullScreenState();
         }
 
@@ -66,6 +82,10 @@ public partial class MainWindow : Window
             if (DataContext is MainViewModel newVm)
             {
                 newVm.ShowFolderPickerAsync = ShowFolderPickerAsync;
+                if (newVm.SelectedDisplayMode == "Scrolling Wall" || newVm.IsScrollEnabled)
+                {
+                    WindowState = WindowState.Maximized;
+                }
                 if (Bounds.Width > 0) newVm.ContainerWidth = Bounds.Width;
                 if (Bounds.Height > 0) newVm.ContainerHeight = Bounds.Height;
                 UpdateFullScreenState();
@@ -370,6 +390,8 @@ public partial class MainWindow : Window
                 var screen = Screens.ScreenFromWindow(this);
                 if (screen != null)
                 {
+                    double scaling = RenderScaling > 0 ? RenderScaling : screen.Scaling;
+
                     double boundsTop = screen.Bounds.Y;
                     double boundsBottom = screen.Bounds.Y + screen.Bounds.Height;
 
@@ -377,10 +399,10 @@ public partial class MainWindow : Window
                     double workBottom = screen.WorkingArea.Y + screen.WorkingArea.Height;
 
                     double windowTop = Position.Y;
-                    double windowBottom = Position.Y + Bounds.Height;
+                    double windowBottom = Position.Y + (Bounds.Height * scaling);
 
-                    bool touchesTop = (windowTop <= boundsTop + 10) || (Math.Abs(windowTop - workTop) <= 10);
-                    bool touchesBottom = (windowBottom >= boundsBottom - 10) || (Math.Abs(windowBottom - workBottom) <= 10);
+                    bool touchesTop = (windowTop <= boundsTop + 20) || (Math.Abs(windowTop - workTop) <= 20);
+                    bool touchesBottom = (windowBottom >= boundsBottom - 20) || (Math.Abs(windowBottom - workBottom) <= 20);
 
                     touchesTopAndBottom = touchesTop && touchesBottom;
                 }
