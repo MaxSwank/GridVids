@@ -199,8 +199,8 @@
                 <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" IsEnabled="{Binding AreManualControlsEnabled}"/>
 
                 <!-- Randomize Controls -->
-                <TextBlock Text="Randomize:" IsEnabled="{Binding AreManualControlsEnabled}"/>
-                <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                <TextBlock Text="Randomize:" IsEnabled="{Binding IsRandomizeEnabled}"/>
+                <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="150" IsEnabled="{Binding IsRandomizeEnabled}"/>
 
                 <!-- Stackable Control (Only visible for 2x2 or 2x4) -->
                 <CheckBox Content="Stackable" IsChecked="{Binding IsStackableEnabled}" IsVisible="{Binding IsStackableVisible}"/>

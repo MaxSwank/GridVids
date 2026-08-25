@@ -783,6 +783,7 @@ namespace GridVids.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsRandomizeEnabled))]
         [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
         [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
         [NotifyPropertyChangedFor(nameof(IsScrollVisible))]
@@ -804,6 +805,7 @@ namespace GridVids.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsRandomizeEnabled))]
         private string _selectedRandomize = "None";
         partial void OnSelectedRandomizeChanged(string value)
         {
@@ -812,6 +814,12 @@ namespace GridVids.ViewModels
             _currentSingleVidForMultiple = null;
             _slotsUpdatedInCycle.Clear();
             ClearPreloadedSlot();
+
+            if (value == "Multiple" && IsScrollEnabled)
+            {
+                SelectedDelay = 3.0;
+            }
+
             SaveSettings();
             UpdateRandomizeTimer();
         }
@@ -897,7 +905,8 @@ namespace GridVids.ViewModels
         }
 
         public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsScrollEnabled;
-        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled;
+        public bool IsRandomizeEnabled => !IsSwapEnabled && !IsStackableEnabled;
+        public bool IsDelayEnabled => IsSwapEnabled || (AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled || (IsScrollEnabled && SelectedRandomize == "Multiple");
 
         public bool IsStackableVisible => !IsCollageEnabled && !IsSwapEnabled && (Rows == 2 && (Columns == 2 || Columns == 4));
         public bool IsScrollVisible => !IsCollageEnabled && !IsSwapEnabled && IsFullScreen;
@@ -905,6 +914,7 @@ namespace GridVids.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsRandomizeEnabled))]
         [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
         [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
         [NotifyPropertyChangedFor(nameof(IsScrollVisible))]
@@ -921,6 +931,7 @@ namespace GridVids.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsRandomizeEnabled))]
         [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
         [NotifyPropertyChangedFor(nameof(IsGridVisible))]
         private bool _isScrollEnabled = false;
@@ -931,6 +942,16 @@ namespace GridVids.ViewModels
             if (value)
             {
                 if (IsStackableEnabled) IsStackableEnabled = false;
+
+                if (SelectedRandomize == "Multiple")
+                {
+                    SelectedDelay = 3.0;
+                }
+                else
+                {
+                    SelectedRandomize = "None";
+                }
+
                 if (IsVideoPlaying)
                 {
                     _playbackService.Stop(VideoSlots);
@@ -945,6 +966,7 @@ namespace GridVids.ViewModels
                     _ = ExecutePlayback();
                 }
             }
+            UpdateRandomizeTimer();
         }
 
         private Avalonia.Threading.DispatcherTimer? _scrollTimer;
@@ -1574,7 +1596,11 @@ namespace GridVids.ViewModels
 
         private async Task PreloadNextSlotAsync()
         {
-            if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            var activeSlots = IsScrollEnabled
+                ? ScrollSlots.Where(s => s.CollageY >= -50 && s.CollageY <= ContainerHeight && s.WindowHandle != IntPtr.Zero).ToList()
+                : VideoSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+
+            if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || activeSlots.Count == 0) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
             _isPreloading = true;
@@ -1582,32 +1608,32 @@ namespace GridVids.ViewModels
             {
                 VideoSlotViewModel? nextSlot = null;
 
-                if (SelectedRandomize == "Staircase")
+                if (SelectedRandomize == "Staircase" && !IsScrollEnabled)
                 {
                     var scIndices = GetStaircaseSlotIndices(Rows, Columns);
                     if (scIndices.Count == 0) return;
 
                     int peekIndex = _staircaseIndex % scIndices.Count;
                     int targetSlotIndex = scIndices[peekIndex];
-                    if (targetSlotIndex < VideoSlots.Count)
+                    if (targetSlotIndex < activeSlots.Count)
                     {
-                        nextSlot = VideoSlots[targetSlotIndex];
+                        nextSlot = activeSlots[targetSlotIndex];
                     }
                 }
                 else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
                 {
                     if (_randomSlotQueue.Count == 0)
                     {
-                        var indices = Enumerable.Range(0, VideoSlots.Count).OrderBy(_ => _rnd.Next()).ToList();
+                        var indices = Enumerable.Range(0, activeSlots.Count).OrderBy(_ => _rnd.Next()).ToList();
                         foreach (var idx in indices) _randomSlotQueue.Enqueue(idx);
                     }
 
                     if (_randomSlotQueue.Count > 0)
                     {
                         int targetSlotIndex = _randomSlotQueue.Peek();
-                        if (targetSlotIndex < VideoSlots.Count)
+                        if (targetSlotIndex < activeSlots.Count)
                         {
-                            nextSlot = VideoSlots[targetSlotIndex];
+                            nextSlot = activeSlots[targetSlotIndex];
                         }
                     }
                 }
@@ -1628,7 +1654,7 @@ namespace GridVids.ViewModels
                 {
                     if (string.IsNullOrEmpty(_currentSingleVidForMultiple))
                     {
-                        var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                        var excludedPaths = activeSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
                         var singleVids = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, isSingleVidMode: true);
                         if (singleVids.Count > 0) _currentSingleVidForMultiple = singleVids[0];
                     }
@@ -1638,7 +1664,7 @@ namespace GridVids.ViewModels
                 }
                 else
                 {
-                    var excludedPaths = VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
+                    var excludedPaths = activeSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).Cast<string>().ToHashSet();
                     var newVideos = await _videoLibraryService.GetRandomVideosAsync(1, excludedPaths, IsSingleVidEnabled);
                     if (newVideos.Count == 0) return;
                     videoPath = newVideos[0];
@@ -1692,7 +1718,9 @@ namespace GridVids.ViewModels
         {
             if (_randomizeTimer == null) return;
 
-            if (!IsSwapEnabled && SelectedRandomize != "None" && !IsStackableEnabled)
+            bool shouldRun = !IsSwapEnabled && SelectedRandomize != "None" && !IsStackableEnabled && (!IsScrollEnabled || SelectedRandomize == "Multiple");
+
+            if (shouldRun)
             {
                 _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay));
                 if (!_randomizeTimer.IsEnabled) _randomizeTimer.Start();
@@ -1707,12 +1735,18 @@ namespace GridVids.ViewModels
 
         private async void RandomizeTimer_Tick(object? sender, EventArgs e)
         {
-            if (IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || VideoSlots.Count == 0) return;
+            if (IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
+
+            var activeSlots = IsScrollEnabled
+                ? ScrollSlots.Where(s => s.CollageY >= -50 && s.CollageY <= ContainerHeight && s.WindowHandle != IntPtr.Zero).ToList()
+                : VideoSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+
+            if (activeSlots.Count == 0) return;
 
             var targetSlots = new List<VideoSlotViewModel>();
 
-            if (SelectedRandomize == "Staircase")
+            if (SelectedRandomize == "Staircase" && !IsScrollEnabled)
             {
                 var scIndices = GetStaircaseSlotIndices(Rows, Columns);
                 if (scIndices.Count > 0)
@@ -1721,15 +1755,15 @@ namespace GridVids.ViewModels
                     int targetSlotIndex = scIndices[_staircaseIndex];
                     _staircaseIndex = (_staircaseIndex + 1) % scIndices.Count;
 
-                    if (targetSlotIndex < VideoSlots.Count)
+                    if (targetSlotIndex < activeSlots.Count)
                     {
-                        targetSlots.Add(VideoSlots[targetSlotIndex]);
+                        targetSlots.Add(activeSlots[targetSlotIndex]);
                     }
                 }
             }
             else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
             {
-                int totalSlots = VideoSlots.Count;
+                int totalSlots = activeSlots.Count;
                 int rawCount = totalSlots > 1 ? _rnd.Next(2, totalSlots + 1) : 1;
                 // Scale back by another 50% (i.e. 12.5% of raw count, minimum 1)
                 int countToSelect = Math.Max(1, (int)Math.Round(rawCount * 0.125));
@@ -1752,7 +1786,7 @@ namespace GridVids.ViewModels
 
                 foreach (var idx in selectedIndices)
                 {
-                    targetSlots.Add(VideoSlots[idx]);
+                    targetSlots.Add(activeSlots[idx]);
                 }
             }
 
