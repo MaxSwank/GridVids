@@ -67,28 +67,39 @@ public partial class MainWindow : Window
             }
         };
 
-        if (DataContext is MainViewModel vm)
+        void AttachVm(MainViewModel vm)
         {
             vm.ShowFolderPickerAsync = ShowFolderPickerAsync;
             if (vm.SelectedDisplayMode == "Scrolling Wall" || vm.IsScrollEnabled)
             {
                 WindowState = WindowState.Maximized;
             }
+            if (Bounds.Width > 0) vm.ContainerWidth = Bounds.Width;
+            if (Bounds.Height > 0) vm.ContainerHeight = Bounds.Height;
             UpdateFullScreenState();
+
+            vm.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.SelectedDisplayMode) || e.PropertyName == nameof(MainViewModel.IsScrollEnabled))
+                {
+                    if (vm.SelectedDisplayMode == "Scrolling Wall" || vm.IsScrollEnabled)
+                    {
+                        WindowState = WindowState.Maximized;
+                    }
+                }
+            };
+        }
+
+        if (DataContext is MainViewModel initialVm)
+        {
+            AttachVm(initialVm);
         }
 
         DataContextChanged += (s, e) =>
         {
             if (DataContext is MainViewModel newVm)
             {
-                newVm.ShowFolderPickerAsync = ShowFolderPickerAsync;
-                if (newVm.SelectedDisplayMode == "Scrolling Wall" || newVm.IsScrollEnabled)
-                {
-                    WindowState = WindowState.Maximized;
-                }
-                if (Bounds.Width > 0) newVm.ContainerWidth = Bounds.Width;
-                if (Bounds.Height > 0) newVm.ContainerHeight = Bounds.Height;
-                UpdateFullScreenState();
+                AttachVm(newVm);
             }
         };
 

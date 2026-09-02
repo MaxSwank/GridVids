@@ -91,7 +91,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Grid Background="Black" Margin="0">
+                    <Grid Background="Transparent" Margin="0">
                         <controls:NativeEmbeddingControl 
                             x:Name="StackEmbedder"
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
@@ -114,7 +114,7 @@
         <ItemsControl Grid.Row="2" Name="ScrollContainer" ItemsSource="{Binding ScrollSlots}" IsVisible="{Binding IsScrollEnabled}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <Canvas Background="Black" ClipToBounds="True"/>
+                    <Canvas Background="Transparent" ClipToBounds="True"/>
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.Styles>
@@ -152,7 +152,7 @@
         <ItemsControl Grid.Row="2" Name="CollageContainer" ItemsSource="{Binding CollageSlots}" IsVisible="{Binding IsCollageEnabled}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                    <Canvas Background="Black"/>
+                    <Canvas Background="Transparent"/>
                 </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.Styles>
