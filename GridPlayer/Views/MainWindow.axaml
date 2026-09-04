@@ -205,12 +205,14 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <TextBlock Text="📁 MEDIA &amp; LAYOUT" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <Button Command="{Binding SelectVideoFolderCommand}" Content="Select Folder" Padding="8,4"/>
+                        <Button Command="{Binding PlayCommand}" Content="Play" Padding="8,4" ToolTip.Tip="Restart playback"/>
+                        <Button Command="{Binding StopCommand}" Content="Stop" Padding="8,4" ToolTip.Tip="Stop playback"/>
                         <TextBlock Text="{Binding VideoPath}" MaxWidth="140" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="#d1d1d6" ToolTip.Tip="{Binding VideoPath}"/>
                         <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
                         <TextBlock Text="Rows:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
-                        <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                        <NumericUpDown Value="{Binding Rows}" Minimum="1" Maximum="5" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0"/>
                         <TextBlock Text="Cols:" VerticalAlignment="Center" Foreground="#e5e5ea"/>
-                        <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0" IsEnabled="{Binding AreManualControlsEnabled}"/>
+                        <NumericUpDown Value="{Binding Columns}" Minimum="1" Maximum="8" Width="90" FormatString="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Foreground="#ffffff" Padding="0"/>
                     </StackPanel>
                 </Border>
 
@@ -219,6 +221,7 @@
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <TextBlock Text="🎬 DISPLAY MODE" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox ItemsSource="{Binding DisplayModeOptions}" SelectedItem="{Binding SelectedDisplayMode}" Width="135" Padding="6,4"/>
+                        <CheckBox Content="Cycle" IsChecked="{Binding IsCycleModesEnabled}" VerticalAlignment="Center"/>
                         <!-- Contextual Auto-Swap Controls -->
                         <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsSwapEnabled}" VerticalAlignment="Center">
                             <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="70"/>

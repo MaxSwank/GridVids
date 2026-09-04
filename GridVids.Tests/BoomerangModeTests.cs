@@ -69,15 +69,62 @@ namespace GridVids.Tests
         }
 
         [Fact]
-        public void Test_AppSettings_And_DisplayModeOptions_Contain_Boomerang()
+        public void Test_AppSettings_And_DisplayModeOptions_Contain_Boomerang_And_CycleModes()
         {
             var settings = new AppSettings();
             Assert.False(settings.IsBoomerangEnabled);
             settings.IsBoomerangEnabled = true;
             Assert.True(settings.IsBoomerangEnabled);
 
+            Assert.False(settings.IsCycleModesEnabled);
+            settings.IsCycleModesEnabled = true;
+            Assert.True(settings.IsCycleModesEnabled);
+
             settings.SelectedDisplayMode = "Boomerang";
             Assert.Equal("Boomerang", settings.SelectedDisplayMode);
+
+            settings.SelectedDisplayMode = "Cycle Modes";
+            Assert.Equal("Cycle Modes", settings.SelectedDisplayMode);
+        }
+
+        [Fact]
+        public void Test_Dropdowns_Are_Alphabetically_Sorted()
+        {
+            // Expected alpha sorted DisplayModeOptions (Cycle Modes is now a checkbox next to dropdown)
+            var expectedDisplayModes = new List<string>
+            {
+                "Auto-Swap",
+                "Boomerang",
+                "Collage",
+                "Grid",
+                "Scrolling Wall",
+                "Stackable"
+            };
+            var sortedDisplayModes = expectedDisplayModes.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            Assert.Equal(expectedDisplayModes, sortedDisplayModes);
+
+            // Expected alpha sorted RandomizeOptions
+            var expectedRandomizeOptions = new List<string>
+            {
+                "Multiple",
+                "None"
+            };
+            var sortedRandomizeOptions = expectedRandomizeOptions.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            Assert.Equal(expectedRandomizeOptions, sortedRandomizeOptions);
+        }
+
+        [Fact]
+        public void Test_Play_And_Stop_Commands_Exist_And_Executable()
+        {
+            var vm = new MainViewModel();
+            Assert.NotNull(vm.PlayCommand);
+            Assert.NotNull(vm.StopCommand);
+            Assert.True(vm.PlayCommand.CanExecute(null));
+            Assert.True(vm.StopCommand.CanExecute(null));
+
+            // Executing Stop when not playing shouldn't throw
+            vm.StopCommand.Execute(null);
+            Assert.False(vm.IsVideoPlaying);
         }
 
         [Fact]

@@ -188,6 +188,7 @@ namespace GridVids.ViewModels
             InitializeRandomizeTimer();
             InitializeStackTimer();
             InitializeBoomerangTimer();
+            InitializeCycleModesTimer();
 
             _rows = settings.Rows > 0 ? settings.Rows : 2;
             _columns = settings.Columns > 0 ? settings.Columns : 2;
@@ -313,7 +314,6 @@ namespace GridVids.ViewModels
                 if (c1 > 0 && c2 > 0) total = c1 + c2;
             }
 
-            _staircaseIndex = 0;
             _randomSlotQueue.Clear();
             _currentSingleVidForMultiple = null;
             _slotsUpdatedInCycle.Clear();
@@ -380,6 +380,7 @@ namespace GridVids.ViewModels
                 IsScrollEnabled = IsScrollEnabled,
                 IsCollageEnabled = IsCollageEnabled,
                 IsBoomerangEnabled = IsBoomerangEnabled,
+                IsCycleModesEnabled = IsCycleModesEnabled,
                 SelectedDisplayMode = SelectedDisplayMode,
                 ScrollSpeed = ScrollSpeed,
                 SelectedScrollDirection = SelectedScrollDirection
@@ -938,7 +939,12 @@ namespace GridVids.ViewModels
                 StartBoomerang();
             }
 
-            if (!IsStackableEnabled && !IsSwapEnabled && !IsBoomerangEnabled)
+            if (IsCycleModesEnabled)
+            {
+                UpdateCycleModesTimer();
+            }
+
+            if (!IsStackableEnabled && !IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled)
             {
                 _ = PreloadNextSlotAsync();
             }
@@ -963,14 +969,56 @@ namespace GridVids.ViewModels
         [ObservableProperty]
         private bool _isVideoPlaying = false;
 
+        [RelayCommand]
+        public async Task Play()
+        {
+            if (string.IsNullOrWhiteSpace(VideoPath)) return;
+
+            Stop();
+
+            await Task.Delay(150);
+
+            if (IsScrollEnabled)
+            {
+                StartScroll();
+            }
+            else if (IsCollageEnabled)
+            {
+                await StartCollage();
+            }
+            else
+            {
+                await ExecutePlayback();
+                if (IsSwapEnabled) _swapTimer?.Start();
+                if (IsStackableEnabled) UpdateStackTimer();
+            }
+
+            if (IsCycleModesEnabled)
+            {
+                StartCycleModes();
+            }
+
+            if (SelectedRandomize != "None")
+            {
+                UpdateRandomizeTimer();
+            }
+        }
+
+        [RelayCommand]
         public void Stop()
         {
-            IsSwapEnabled = false; // Stop timer
+            _swapTimer?.Stop();
+            _randomizeTimer?.Stop();
+            _collageTimer?.Stop();
             _stackTimer?.Stop();
             _scrollTimer?.Stop();
-            _playbackService.Stop(VideoSlots);
+            _boomerangTimer?.Stop();
+            _cycleModesTimer?.Stop();
+            _playbackService.StopAll(VideoSlots, CollageSlots, StackSlots);
+            _playbackService.Stop(ScrollSlots);
             ClearStackSlots();
             ClearScrollSlots();
+            ClearPreloadedSlot();
             IsVideoPlaying = false;
         }
 
@@ -983,16 +1031,29 @@ namespace GridVids.ViewModels
             _stackTimer?.Stop();
             _scrollTimer?.Stop();
             _boomerangTimer?.Stop();
+            _cycleModesTimer?.Stop();
             _playbackService.StopAll(VideoSlots, CollageSlots, StackSlots);
             _playbackService.Stop(ScrollSlots);
             StackSlots.Clear();
             ScrollSlots.Clear();
         }
 
-        public ObservableCollection<string> DisplayModeOptions { get; } = new() { "Grid", "Auto-Swap", "Stackable", "Boomerang", "Scrolling Wall", "Collage" };
+        public ObservableCollection<string> DisplayModeOptions { get; } = new()
+        {
+            "Auto-Swap",
+            "Boomerang",
+            "Collage",
+            "Grid",
+            "Scrolling Wall",
+            "Stackable"
+        };
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<double> DelayOptions { get; } = new();
-        public ObservableCollection<string> RandomizeOptions { get; } = new() { "None", "Staircase", "Multiple" };
+        public ObservableCollection<string> RandomizeOptions { get; } = new()
+        {
+            "Multiple",
+            "None"
+        };
 
         private bool _isUpdatingDisplayMode = false;
 
@@ -1006,9 +1067,6 @@ namespace GridVids.ViewModels
 
             try
             {
-                // Capture existing batch of videos BEFORE changing mode or stopping slots
-                var existingBatch = GetCurrentActiveVideoBatch();
-
                 string oldMode = "";
                 if (IsCollageEnabled) oldMode = "Collage";
                 else if (IsScrollEnabled) oldMode = "Scrolling Wall";
@@ -1019,199 +1077,201 @@ namespace GridVids.ViewModels
 
                 if (oldMode == value) return;
 
-                bool wasUsingVideoSlots = (oldMode == "Grid" || oldMode == "Auto-Swap" || oldMode == "Stackable" || oldMode == "Boomerang");
-                bool willUseVideoSlots = (value == "Grid" || value == "Auto-Swap" || value == "Stackable" || value == "Boomerang");
-
-                // Case 1: Seamless switch between Grid, Auto-Swap, Stackable, and Boomerang (all share VideoSlots - NEVER STOP)
-                if (wasUsingVideoSlots && willUseVideoSlots)
-                {
-                    if (oldMode == "Auto-Swap") _swapTimer?.Stop();
-                    if (oldMode == "Stackable")
-                    {
-                        _stackTimer?.Stop();
-                        ClearStackSlots();
-                    }
-                    if (oldMode == "Boomerang") StopBoomerang();
-
-                    IsCollageEnabled = false;
-                    IsScrollEnabled = false;
-                    IsGridVisible = true;
-
-                    if (value == "Auto-Swap")
-                    {
-                        IsStackableEnabled = false;
-                        IsBoomerangEnabled = false;
-                        IsSwapEnabled = true;
-                        UpdateGrid();
-                        _swapTimer?.Start();
-                    }
-                    else if (value == "Stackable")
-                    {
-                        IsSwapEnabled = false;
-                        IsBoomerangEnabled = false;
-                        IsStackableEnabled = true;
-                        UpdateGrid();
-                        UpdateStackTimer();
-                    }
-                    else if (value == "Boomerang")
-                    {
-                        IsSwapEnabled = false;
-                        IsStackableEnabled = false;
-                        IsBoomerangEnabled = true;
-                        UpdateGrid();
-                        StartBoomerang();
-                    }
-                    else // "Grid"
-                    {
-                        IsSwapEnabled = false;
-                        IsStackableEnabled = false;
-                        IsBoomerangEnabled = false;
-                        _isShowingGrid1 = true;
-                        UpdateGrid();
-                    }
-
-                    UpdateRandomizeTimer();
-                    SaveSettings();
-                    return;
-                }
-
-                // Case 2: Transitioning to Scrolling Wall (Keep previous videos playing until scroll wall is ready)
-                if (value == "Scrolling Wall")
-                {
-                    if (oldMode == "Auto-Swap") _swapTimer?.Stop();
-                    if (oldMode == "Stackable")
-                    {
-                        _stackTimer?.Stop();
-                        ClearStackSlots();
-                    }
-                    if (oldMode == "Boomerang") StopBoomerang();
-
-                    IsSwapEnabled = false;
-                    IsStackableEnabled = false;
-                    IsBoomerangEnabled = false;
-                    IsScrollEnabled = true;
-
-                    if (!string.IsNullOrEmpty(VideoPath))
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await StartScrollAsync(existingBatch);
-                            await Task.Delay(300);
-                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            {
-                                if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
-                                {
-                                    _playbackService.Stop(VideoSlots);
-                                    IsGridVisible = false;
-                                }
-                                if (CollageSlots.Count > 0)
-                                {
-                                    StopCollage();
-                                    IsCollageEnabled = false;
-                                }
-                            });
-                        });
-                    }
-                    UpdateRandomizeTimer();
-                    SaveSettings();
-                    return;
-                }
-
-                // Case 3: Transitioning to Collage (Keep previous videos playing until collage buffers and reveals)
-                if (value == "Collage")
-                {
-                    if (oldMode == "Auto-Swap") _swapTimer?.Stop();
-                    if (oldMode == "Stackable")
-                    {
-                        _stackTimer?.Stop();
-                        ClearStackSlots();
-                    }
-                    if (oldMode == "Boomerang") StopBoomerang();
-
-                    IsSwapEnabled = false;
-                    IsStackableEnabled = false;
-                    IsBoomerangEnabled = false;
-                    IsCollageEnabled = true;
-
-                    if (!string.IsNullOrEmpty(VideoPath))
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await StartCollage(existingBatch);
-                            await Task.Delay(200);
-                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            {
-                                if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
-                                {
-                                    _playbackService.Stop(VideoSlots);
-                                    IsGridVisible = false;
-                                }
-                                if (ScrollSlots.Count > 0)
-                                {
-                                    StopScroll();
-                                    IsScrollEnabled = false;
-                                }
-                            });
-                        });
-                    }
-                    UpdateRandomizeTimer();
-                    SaveSettings();
-                    return;
-                }
-
-                // Case 4: Transitioning from Scrolling Wall or Collage to Grid / Auto-Swap / Stackable / Boomerang
-                if (willUseVideoSlots)
-                {
-                    IsGridVisible = true;
-                    UpdateGrid();
-
-                    if (!string.IsNullOrEmpty(VideoPath))
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            await ExecutePlayback(existingBatch);
-                            await Task.Delay(400);
-                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                            {
-                                if (oldMode == "Scrolling Wall")
-                                {
-                                    StopScroll();
-                                    IsScrollEnabled = false;
-                                }
-                                else if (oldMode == "Collage")
-                                {
-                                    StopCollage();
-                                    IsCollageEnabled = false;
-                                }
-
-                                if (value == "Auto-Swap")
-                                {
-                                    IsSwapEnabled = true;
-                                    _swapTimer?.Start();
-                                }
-                                else if (value == "Stackable")
-                                {
-                                    IsStackableEnabled = true;
-                                    UpdateStackTimer();
-                                }
-                                else if (value == "Boomerang")
-                                {
-                                    IsBoomerangEnabled = true;
-                                    StartBoomerang();
-                                }
-                                UpdateRandomizeTimer();
-                            });
-                        });
-                    }
-                    SaveSettings();
-                    return;
-                }
-
+                ApplyModeTransition(oldMode, value);
                 SaveSettings();
             }
             finally
             {
                 _isUpdatingDisplayMode = false;
+            }
+        }
+
+        private void ApplyModeTransition(string oldMode, string value)
+        {
+            // Capture existing batch of videos BEFORE changing mode or stopping slots
+            var existingBatch = GetCurrentActiveVideoBatch();
+
+            bool wasUsingVideoSlots = (oldMode == "Grid" || oldMode == "Auto-Swap" || oldMode == "Stackable" || oldMode == "Boomerang");
+            bool willUseVideoSlots = (value == "Grid" || value == "Auto-Swap" || value == "Stackable" || value == "Boomerang");
+
+            // Case 1: Seamless switch between Grid, Auto-Swap, Stackable, and Boomerang (all share VideoSlots - NEVER STOP)
+            if (wasUsingVideoSlots && willUseVideoSlots)
+            {
+                if (oldMode == "Auto-Swap") _swapTimer?.Stop();
+                if (oldMode == "Stackable")
+                {
+                    _stackTimer?.Stop();
+                    ClearStackSlots();
+                }
+                if (oldMode == "Boomerang") StopBoomerang();
+
+                IsCollageEnabled = false;
+                IsScrollEnabled = false;
+                IsGridVisible = true;
+
+                if (value == "Auto-Swap")
+                {
+                    IsStackableEnabled = false;
+                    IsBoomerangEnabled = false;
+                    IsSwapEnabled = true;
+                    UpdateGrid();
+                    _swapTimer?.Start();
+                }
+                else if (value == "Stackable")
+                {
+                    IsSwapEnabled = false;
+                    IsBoomerangEnabled = false;
+                    IsStackableEnabled = true;
+                    UpdateGrid();
+                    UpdateStackTimer();
+                }
+                else if (value == "Boomerang")
+                {
+                    IsSwapEnabled = false;
+                    IsStackableEnabled = false;
+                    IsBoomerangEnabled = true;
+                    UpdateGrid();
+                    StartBoomerang();
+                }
+                else // "Grid"
+                {
+                    IsSwapEnabled = false;
+                    IsStackableEnabled = false;
+                    IsBoomerangEnabled = false;
+                    _isShowingGrid1 = true;
+                    UpdateGrid();
+                }
+
+                UpdateRandomizeTimer();
+                return;
+            }
+
+            // Case 2: Transitioning to Scrolling Wall (Keep previous videos playing until scroll wall is ready)
+            if (value == "Scrolling Wall")
+            {
+                if (oldMode == "Auto-Swap") _swapTimer?.Stop();
+                if (oldMode == "Stackable")
+                {
+                    _stackTimer?.Stop();
+                    ClearStackSlots();
+                }
+                if (oldMode == "Boomerang") StopBoomerang();
+
+                IsSwapEnabled = false;
+                IsStackableEnabled = false;
+                IsBoomerangEnabled = false;
+                IsScrollEnabled = true;
+
+                if (!string.IsNullOrEmpty(VideoPath))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await StartScrollAsync(existingBatch);
+                        await Task.Delay(300);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
+                            {
+                                _playbackService.Stop(VideoSlots);
+                                IsGridVisible = false;
+                            }
+                            if (CollageSlots.Count > 0)
+                            {
+                                StopCollage();
+                                IsCollageEnabled = false;
+                            }
+                        });
+                    });
+                }
+                UpdateRandomizeTimer();
+                return;
+            }
+
+            // Case 3: Transitioning to Collage (Keep previous videos playing until collage buffers and reveals)
+            if (value == "Collage")
+            {
+                if (oldMode == "Auto-Swap") _swapTimer?.Stop();
+                if (oldMode == "Stackable")
+                {
+                    _stackTimer?.Stop();
+                    ClearStackSlots();
+                }
+                if (oldMode == "Boomerang") StopBoomerang();
+
+                IsSwapEnabled = false;
+                IsStackableEnabled = false;
+                IsBoomerangEnabled = false;
+                IsCollageEnabled = true;
+
+                if (!string.IsNullOrEmpty(VideoPath))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await StartCollage(existingBatch);
+                        await Task.Delay(200);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
+                            {
+                                _playbackService.Stop(VideoSlots);
+                                IsGridVisible = false;
+                            }
+                            if (ScrollSlots.Count > 0)
+                            {
+                                StopScroll();
+                                IsScrollEnabled = false;
+                            }
+                        });
+                    });
+                }
+                UpdateRandomizeTimer();
+                return;
+            }
+
+            // Case 4: Transitioning from Scrolling Wall or Collage to Grid / Auto-Swap / Stackable / Boomerang
+            if (willUseVideoSlots)
+            {
+                IsGridVisible = true;
+                UpdateGrid();
+
+                if (!string.IsNullOrEmpty(VideoPath))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await ExecutePlayback(existingBatch);
+                        await Task.Delay(400);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            if (oldMode == "Scrolling Wall")
+                            {
+                                StopScroll();
+                                IsScrollEnabled = false;
+                            }
+                            else if (oldMode == "Collage")
+                            {
+                                StopCollage();
+                                IsCollageEnabled = false;
+                            }
+
+                            if (value == "Auto-Swap")
+                            {
+                                IsSwapEnabled = true;
+                                _swapTimer?.Start();
+                            }
+                            else if (value == "Stackable")
+                            {
+                                IsStackableEnabled = true;
+                                UpdateStackTimer();
+                            }
+                            else if (value == "Boomerang")
+                            {
+                                IsBoomerangEnabled = true;
+                                StartBoomerang();
+                            }
+                            UpdateRandomizeTimer();
+                        });
+                    });
+                }
             }
         }
 
@@ -1265,7 +1325,6 @@ namespace GridVids.ViewModels
         private string _selectedRandomize = "None";
         partial void OnSelectedRandomizeChanged(string value)
         {
-            _staircaseIndex = 0;
             _randomSlotQueue.Clear();
             _currentSingleVidForMultiple = null;
             _slotsUpdatedInCycle.Clear();
@@ -1354,18 +1413,39 @@ namespace GridVids.ViewModels
         {
         }
 
-        public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsBoomerangEnabled;
-        public bool IsRandomizeEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsBoomerangEnabled;
-        public bool IsDelayEnabled => IsSwapEnabled || IsBoomerangEnabled || (!IsScrollEnabled && AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled || (IsScrollEnabled && SelectedRandomize == "Multiple");
+        public bool AreManualControlsEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled;
+        public bool IsRandomizeEnabled => !IsSwapEnabled && !IsStackableEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled;
+        public bool IsDelayEnabled => IsSwapEnabled || IsBoomerangEnabled || IsCycleModesEnabled || (!IsScrollEnabled && AreManualControlsEnabled && SelectedRandomize != "None") || IsStackableEnabled || (IsScrollEnabled && SelectedRandomize == "Multiple");
 
-        public bool IsStackableVisible => !IsCollageEnabled && !IsSwapEnabled && !IsBoomerangEnabled && (Rows == 2 && (Columns == 2 || Columns == 4));
-        public bool IsScrollVisible => !IsCollageEnabled && !IsSwapEnabled && !IsBoomerangEnabled;
+        public bool IsStackableVisible => !IsCollageEnabled && !IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled && (Rows == 2 && (Columns == 2 || Columns == 4));
+        public bool IsScrollVisible => !IsCollageEnabled && !IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled;
 
         private bool _isGridVisible = true;
         public bool IsGridVisible
         {
             get => _isGridVisible;
             set => SetProperty(ref _isGridVisible, value);
+        }
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(AreManualControlsEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsRandomizeEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsDelayEnabled))]
+        [NotifyPropertyChangedFor(nameof(IsStackableVisible))]
+        [NotifyPropertyChangedFor(nameof(IsScrollVisible))]
+        private bool _isCycleModesEnabled = false;
+
+        partial void OnIsCycleModesEnabledChanged(bool value)
+        {
+            SaveSettings();
+            if (value)
+            {
+                StartCycleModes();
+            }
+            else
+            {
+                StopCycleModes();
+            }
         }
 
         [ObservableProperty]
@@ -1749,6 +1829,7 @@ namespace GridVids.ViewModels
             if (_swapTimer != null) _swapTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
             if (_randomizeTimer != null) _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
             if (_stackTimer != null) _stackTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
+            if (_cycleModesTimer != null) _cycleModesTimer.Interval = TimeSpan.FromSeconds(Math.Max(1.0, value));
             SaveSettings();
         }
 
@@ -1757,6 +1838,57 @@ namespace GridVids.ViewModels
         private Avalonia.Threading.DispatcherTimer? _randomizeTimer;
         private Avalonia.Threading.DispatcherTimer? _stackTimer;
         private Avalonia.Threading.DispatcherTimer? _boomerangTimer;
+        private Avalonia.Threading.DispatcherTimer? _cycleModesTimer;
+        private int _cycleModeIndex = 0;
+        private readonly string[] _cycleModeSequence = { "Grid", "Auto-Swap", "Stackable", "Boomerang", "Scrolling Wall", "Collage" };
+
+        private void InitializeCycleModesTimer()
+        {
+            _cycleModesTimer = new Avalonia.Threading.DispatcherTimer();
+            _cycleModesTimer.Tick += CycleModesTimer_Tick;
+            UpdateCycleModesTimer();
+        }
+
+        private void UpdateCycleModesTimer()
+        {
+            if (_cycleModesTimer == null) return;
+            _cycleModesTimer.Interval = TimeSpan.FromSeconds(Math.Max(1.0, SelectedDelay));
+            if (IsCycleModesEnabled && IsVideoPlaying)
+            {
+                if (!_cycleModesTimer.IsEnabled) _cycleModesTimer.Start();
+            }
+            else
+            {
+                _cycleModesTimer.Stop();
+            }
+        }
+
+        private void StartCycleModes()
+        {
+            if (_cycleModesTimer == null)
+            {
+                InitializeCycleModesTimer();
+            }
+            int idx = Array.IndexOf(_cycleModeSequence, SelectedDisplayMode);
+            _cycleModeIndex = idx >= 0 ? idx : 0;
+            UpdateCycleModesTimer();
+        }
+
+        private void StopCycleModes()
+        {
+            _cycleModesTimer?.Stop();
+        }
+
+        private void CycleModesTimer_Tick(object? sender, EventArgs e)
+        {
+            if (!IsCycleModesEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath)) return;
+            int curIdx = Array.IndexOf(_cycleModeSequence, SelectedDisplayMode);
+            if (curIdx >= 0) _cycleModeIndex = curIdx;
+            _cycleModeIndex = (_cycleModeIndex + 1) % _cycleModeSequence.Length;
+            string nextMode = _cycleModeSequence[_cycleModeIndex];
+            SelectedDisplayMode = nextMode;
+        }
+
         private int _stackQuadrantStep = 0; // 0 = reveal Quad 1, 1 = reveal Quad 2, 2 = reveal Quad 3, 3 = reveal Quad 4
         private bool _isStackRunning = false;
 
@@ -2102,7 +2234,6 @@ namespace GridVids.ViewModels
         private Queue<int> _randomSlotQueue = new();
         private string? _currentSingleVidForMultiple;
         private HashSet<int> _slotsUpdatedInCycle = new();
-        private int _staircaseIndex = 0;
         private bool _isShowingGrid1 = true;
 
         private class PreloadedSlotData
@@ -2141,19 +2272,7 @@ namespace GridVids.ViewModels
             {
                 VideoSlotViewModel? nextSlot = null;
 
-                if (SelectedRandomize == "Staircase" && !IsScrollEnabled)
-                {
-                    var scIndices = GetStaircaseSlotIndices(Rows, Columns);
-                    if (scIndices.Count == 0) return;
-
-                    int peekIndex = _staircaseIndex % scIndices.Count;
-                    int targetSlotIndex = scIndices[peekIndex];
-                    if (targetSlotIndex < activeSlots.Count)
-                    {
-                        nextSlot = activeSlots[targetSlotIndex];
-                    }
-                }
-                else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
+                if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
                 {
                     if (_randomSlotQueue.Count == 0)
                     {
@@ -2280,22 +2399,7 @@ namespace GridVids.ViewModels
 
             var targetSlots = new List<VideoSlotViewModel>();
 
-            if (SelectedRandomize == "Staircase" && !IsScrollEnabled)
-            {
-                var scIndices = GetStaircaseSlotIndices(Rows, Columns);
-                if (scIndices.Count > 0)
-                {
-                    if (_staircaseIndex >= scIndices.Count) _staircaseIndex = 0;
-                    int targetSlotIndex = scIndices[_staircaseIndex];
-                    _staircaseIndex = (_staircaseIndex + 1) % scIndices.Count;
-
-                    if (targetSlotIndex < activeSlots.Count)
-                    {
-                        targetSlots.Add(activeSlots[targetSlotIndex]);
-                    }
-                }
-            }
-            else if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
+            if (SelectedRandomize == "Multiple" || SelectedRandomize == "Randomize Multiple" || SelectedRandomize == "Randomize multiple")
             {
                 int totalSlots = activeSlots.Count;
                 int rawCount = totalSlots > 1 ? _rnd.Next(2, totalSlots + 1) : 1;
@@ -2426,34 +2530,6 @@ namespace GridVids.ViewModels
             }
 
             _ = PreloadNextSlotAsync();
-        }
-
-        private List<int> GetStaircaseSlotIndices(int rows, int cols)
-        {
-            var list = new List<int>();
-            if (rows <= 0 || cols <= 0) return list;
-
-            for (int r = 0; r < rows; r++)
-            {
-                if (r % 2 == 0)
-                {
-                    // Even row: Left to Right
-                    for (int c = 0; c < cols; c++)
-                    {
-                        list.Add(r * cols + c);
-                    }
-                }
-                else
-                {
-                    // Odd row: Right to Left
-                    for (int c = cols - 1; c >= 0; c--)
-                    {
-                        list.Add(r * cols + c);
-                    }
-                }
-            }
-
-            return list;
         }
 
         private async void SwapTimer_Tick(object? sender, EventArgs e)

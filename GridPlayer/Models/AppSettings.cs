@@ -19,6 +19,7 @@ namespace GridVids.Models
         public bool IsScrollEnabled { get; set; } = false;
         public bool IsCollageEnabled { get; set; } = false;
         public bool IsBoomerangEnabled { get; set; } = false;
+        public bool IsCycleModesEnabled { get; set; } = false;
         public string SelectedDisplayMode { get; set; } = "Grid";
         public double ScrollSpeed { get; set; } = 80.0;
         public string SelectedScrollDirection { get; set; } = "Up";

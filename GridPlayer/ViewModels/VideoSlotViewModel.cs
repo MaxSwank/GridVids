@@ -30,7 +30,7 @@ namespace GridVids.ViewModels
 
         public System.Diagnostics.Process? CurrentProcess { get; set; }
         public string CurrentVideoPath { get; set; } = string.Empty;
-        
+
         public bool IsHovered { get; set; }
         public DateTime HoverStartTime { get; set; }
         public bool HasTriggeredHover { get; set; }
@@ -195,8 +195,7 @@ namespace GridVids.ViewModels
                         // We use double backslashes for the ASS tags in the string.
                         string safeName = FileName.Replace("\\", "\\\\").Replace("\"", "\\\"");
                         string text = $"File: {safeName}\\nFPS: {FrameRate}\\nBitrate: {BitRate}";
-                        string assText = "{\\\\an7}{\\\\fs18}{\\\\bord1}{\\\\shad1}{\\\\b1}" + text;
-                        var cmd = new { command = new object[] { "show-text", assText, 1000000 } };
+                        var cmd = new { command = new object[] { "show-text", text, 1000000 } };
                         SendIpcCommand(System.Text.Json.JsonSerializer.Serialize(cmd));
                     }
                     else
