@@ -29,14 +29,24 @@ namespace GridVids.Services
 
             foreach (var slot in slots)
             {
-                if (slot.CurrentProcess != null && !slot.CurrentProcess.HasExited)
-                {
-                    try
-                    {
-                        slot.CurrentProcess.StandardInput.WriteLine($"set speed {speed.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}");
-                    }
-                    catch { }
-                }
+                slot.SetProperty("speed", speed);
+            }
+        }
+
+        public void SetPlayDirectionAndSpeed(IGridSlot slot, bool isForward, double speed)
+        {
+            string dir = isForward ? "forward" : "backward";
+            slot.SetProperty("play-direction", dir);
+            slot.SetProperty("speed", speed);
+        }
+
+        public void ResetPlayDirectionAndSpeed(IEnumerable<IGridSlot> slots, bool isSloMo)
+        {
+            double speed = isSloMo ? 0.7 : 1.0;
+            foreach (var slot in slots)
+            {
+                slot.SetProperty("play-direction", "forward");
+                slot.SetProperty("speed", speed);
             }
         }
 
@@ -47,21 +57,14 @@ namespace GridVids.Services
 
             foreach (var slot in slots)
             {
-                if (slot.CurrentProcess != null && !slot.CurrentProcess.HasExited)
+                if (isMuted)
                 {
-                    try
-                    {
-                        if (isMuted)
-                        {
-                            slot.CurrentProcess.StandardInput.WriteLine("set mute yes");
-                        }
-                        else
-                        {
-                            slot.CurrentProcess.StandardInput.WriteLine("set mute no");
-                            slot.CurrentProcess.StandardInput.WriteLine($"set volume {Math.Clamp(volume, 0, 100)}");
-                        }
-                    }
-                    catch { }
+                    slot.SetProperty("mute", true);
+                }
+                else
+                {
+                    slot.SetProperty("mute", false);
+                    slot.SetProperty("volume", Math.Clamp(volume, 0, 100));
                 }
             }
         }
@@ -156,13 +159,15 @@ namespace GridVids.Services
             catch { }
         }
 
-        public async Task<Process?> PreloadMpvAsync(IGridSlot slot, string videoPath)
+        public async Task<(Process? Process, string IpcPipeName)> PreloadMpvAsync(IGridSlot slot, string videoPath)
         {
             await _processLaunchSemaphore.WaitAsync();
             try
             {
                 var handle = slot.WindowHandle;
-                return await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0, IsMuted, Volume, IsSloMo));
+                string ipcPipeName = $"gridvids_mpv_{Guid.NewGuid():N}";
+                var proc = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, 1, 0, IsMuted, Volume, IsSloMo, ipcPipeName));
+                return (proc, ipcPipeName);
             }
             finally
             {
@@ -170,9 +175,9 @@ namespace GridVids.Services
             }
         }
 
-        public void SwapPreloadedSlot(IGridSlot slot, Process newProcess, string videoPath)
+        public void SwapPreloadedSlot(IGridSlot slot, Process newProcess, string videoPath, string? ipcPipeName = null)
         {
-            var oldProcess = slot.UpdateProcess(newProcess, videoPath);
+            var oldProcess = slot.UpdateProcess(newProcess, videoPath, ipcPipeName);
             if (oldProcess != null)
             {
                 _ = Task.Run(async () =>
@@ -187,13 +192,14 @@ namespace GridVids.Services
         {
             await _processLaunchSemaphore.WaitAsync();
             Process? newProcess = null;
+            string ipcPipeName = $"gridvids_mpv_{Guid.NewGuid():N}";
             try
             {
                 // Capture the handle on the potentially-UI thread before going background
                 var handle = slot.WindowHandle;
 
                 // Run the heavy process creation (Launch + ffrprobe duration check) on a background thread
-                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex, IsMuted, Volume, IsSloMo));
+                newProcess = await Task.Run(() => _orchestrator.StartMpvInstance(videoPath, handle, IsRandomStartEnabled, totalInstances, instanceIndex, IsMuted, Volume, IsSloMo, ipcPipeName));
             }
             finally
             {
@@ -201,7 +207,7 @@ namespace GridVids.Services
             }
 
             // Update UI/Slot on the original context (UI thread)
-            var oldProcess = slot.UpdateProcess(newProcess, videoPath);
+            var oldProcess = slot.UpdateProcess(newProcess, videoPath, ipcPipeName);
 
             // Cleanup old process on background thread with smooth grace period
             if (oldProcess != null)

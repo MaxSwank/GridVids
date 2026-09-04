@@ -95,23 +95,27 @@ namespace GridVids.ViewModels
         public bool HasIncomingReplacement { get; set; }
         public VideoSlotViewModel? Replaces { get; set; }
 
-        public System.Diagnostics.Process? UpdateProcess(System.Diagnostics.Process? newProcess, string newVideoPath)
+        public DateTime BoomerangStartTime { get; set; } = DateTime.MinValue;
+        public int BoomerangPhase { get; set; } = 0;
+
+        [ObservableProperty]
+        private string? _ipcPipeName;
+
+        public System.Diagnostics.Process? UpdateProcess(System.Diagnostics.Process? newProcess, string newVideoPath, string? ipcPipeName = null)
         {
             var old = CurrentProcess;
-
-            // Ensure UI update happens on UI thread if we are not already there?
-            // Since this sets properties that might be bound (though CurrentProcess isn't ObservableProperty currently, it's just a property)
-            // If we want to be safe, we invoke.
-            // However, CurrentProcess implies state. If we make it ObservableProperty later, we definitely need Dispatcher.
 
             Avalonia.Threading.Dispatcher.UIThread.Invoke(() =>
             {
                 CurrentProcess = newProcess;
                 CurrentVideoPath = newVideoPath;
+                IpcPipeName = ipcPipeName;
                 FileName = System.IO.Path.GetFileName(newVideoPath);
                 FrameRate = string.Empty;
                 BitRate = string.Empty;
                 HasTriggeredHover = false;
+                BoomerangStartTime = DateTime.UtcNow;
+                BoomerangPhase = 0;
             });
 
             if (!string.IsNullOrEmpty(newVideoPath))
@@ -132,6 +136,40 @@ namespace GridVids.ViewModels
             }
 
             return old;
+        }
+
+        public void SendIpcCommand(string commandJson)
+        {
+            if (string.IsNullOrEmpty(IpcPipeName)) return;
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                    {
+                        using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", IpcPipeName, System.IO.Pipes.PipeDirection.Out);
+                        pipeClient.Connect(150);
+                        using var writer = new System.IO.StreamWriter(pipeClient);
+                        writer.WriteLine(commandJson);
+                        writer.Flush();
+                    }
+                }
+                catch
+                {
+                    // Ignore transient errors when process is closing
+                }
+            });
+        }
+
+        public void SetProperty(string propertyName, object value)
+        {
+            var cmd = new
+            {
+                command = new object[] { "set_property", propertyName, value }
+            };
+            string json = System.Text.Json.JsonSerializer.Serialize(cmd);
+            SendIpcCommand(json);
         }
 
         public void UpdateOverlay(bool show)
@@ -158,11 +196,13 @@ namespace GridVids.ViewModels
                         string safeName = FileName.Replace("\\", "\\\\").Replace("\"", "\\\"");
                         string text = $"File: {safeName}\\nFPS: {FrameRate}\\nBitrate: {BitRate}";
                         string assText = "{\\\\an7}{\\\\fs18}{\\\\bord1}{\\\\shad1}{\\\\b1}" + text;
-                        CurrentProcess.StandardInput.WriteLine($"show-text \"{assText}\" 1000000");
+                        var cmd = new { command = new object[] { "show-text", assText, 1000000 } };
+                        SendIpcCommand(System.Text.Json.JsonSerializer.Serialize(cmd));
                     }
                     else
                     {
-                        CurrentProcess.StandardInput.WriteLine("show-text \"\" 1");
+                        var cmd = new { command = new object[] { "show-text", "", 1 } };
+                        SendIpcCommand(System.Text.Json.JsonSerializer.Serialize(cmd));
                     }
                 }
                 catch { }

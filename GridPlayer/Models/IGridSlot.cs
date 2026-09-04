@@ -8,6 +8,9 @@ namespace GridVids.Models
         IntPtr WindowHandle { get; }
         Process? CurrentProcess { get; }
         string CurrentVideoPath { get; }
-        Process? UpdateProcess(Process? newProcess, string newVideoPath);
+        string? IpcPipeName { get; set; }
+        Process? UpdateProcess(Process? newProcess, string newVideoPath, string? ipcPipeName = null);
+        void SendIpcCommand(string commandJson);
+        void SetProperty(string propertyName, object value);
     }
 }

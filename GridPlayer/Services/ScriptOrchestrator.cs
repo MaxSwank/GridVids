@@ -105,7 +105,7 @@ namespace GridVids.Services
             catch (Exception ex) { Debug.WriteLine($"Error launching script: {ex.Message}"); }
         }
 
-        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0, bool isMuted = true, int volume = 10, bool isSloMo = false)
+        public Process? StartMpvInstance(string videoPath, IntPtr windowHandle, bool randomStart = true, int totalInstances = 1, int instanceIndex = 0, bool isMuted = true, int volume = 10, bool isSloMo = false, string? ipcPipeName = null)
         {
             double startTime = 0;
             if (randomStart)
@@ -156,8 +156,32 @@ namespace GridVids.Services
                 "--no-input-default-bindings",
                 "--no-input-cursor",
                 "--no-osc",
-                "--input-vo-keyboard=no"
+                "--input-vo-keyboard=no",
+                "--cache=yes",
+                "--cache-pause=no",
+                "--demuxer-max-bytes=500MiB",
+                "--demuxer-max-back-bytes=500MiB",
+                "--demuxer-seekable-cache=yes",
+                "--video-reversal-buffer=500MiB",
+                "--audio-reversal-buffer=200MiB",
+                "--video-sync=display-resample",
+                "--vd-lavc-threads=0",
+                "--vd-lavc-fast=yes",
+                "--hr-seek=yes",
+                "--hr-seek-framedrop=no"
             };
+
+            if (!string.IsNullOrEmpty(ipcPipeName))
+            {
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                {
+                    args.Add($"--input-ipc-server=\\\\.\\pipe\\{ipcPipeName}");
+                }
+                else
+                {
+                    args.Add($"--input-ipc-server=/tmp/{ipcPipeName}.sock");
+                }
+            }
 
             if (isSloMo)
             {
