@@ -222,6 +222,8 @@
                         <TextBlock Text="🎬 DISPLAY MODE" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <ComboBox ItemsSource="{Binding DisplayModeOptions}" SelectedItem="{Binding SelectedDisplayMode}" Width="135" Padding="6,4"/>
                         <CheckBox Content="Cycle" IsChecked="{Binding IsCycleModesEnabled}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsCycleModesEnabled}" Foreground="#e5e5ea"/>
+                        <ComboBox ItemsSource="{Binding CycleDelayOptions}" SelectedItem="{Binding SelectedCycleDelay}" Width="65" IsEnabled="{Binding IsCycleModesEnabled}"/>
                         <!-- Contextual Auto-Swap Controls -->
                         <StackPanel Orientation="Horizontal" Spacing="4" IsVisible="{Binding IsSwapEnabled}" VerticalAlignment="Center">
                             <ComboBox ItemsSource="{Binding GridSizeOptions}" SelectedItem="{Binding SelectedGrid1}" Width="70"/>
@@ -246,7 +248,7 @@
                         <TextBlock Text="⚡ RANDOMIZE &amp; TIMING" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
                         <TextBlock Text="Randomize:" VerticalAlignment="Center" IsEnabled="{Binding IsRandomizeEnabled}" Foreground="#e5e5ea"/>
                         <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="110" IsEnabled="{Binding IsRandomizeEnabled}"/>
-                        <TextBlock Text="Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}" Foreground="#e5e5ea"/>
+                        <TextBlock Text="Randomize Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}" Foreground="#e5e5ea"/>
                         <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="65" IsEnabled="{Binding IsDelayEnabled}"/>
                     </StackPanel>
                 </Border>

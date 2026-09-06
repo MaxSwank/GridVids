@@ -41,8 +41,9 @@ namespace GridVids.ViewModels
             }
             else if (IsScrollEnabled && ScrollSlots.Count > 0)
             {
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
                 list = ScrollSlots
-                    .Where(s => s.CollageY >= -100 && s.CollageY <= ContainerHeight + 100)
+                    .Where(s => (s.CollageY + s.CollageHeight) > 0 && s.CollageY < effectiveH)
                     .OrderBy(s => s.CollageY)
                     .ThenBy(s => s.CollageX)
                     .Select(s => s.CurrentVideoPath)
@@ -95,9 +96,13 @@ namespace GridVids.ViewModels
         public ObservableCollection<VideoSlotViewModel> StackSlots { get; } = new();
         public ObservableCollection<VideoSlotViewModel> ScrollSlots { get; } = new();
 
-        public MainViewModel()
+        public MainViewModel() : this(new SettingsService())
         {
-            _settingsService = new SettingsService();
+        }
+
+        public MainViewModel(SettingsService settingsService)
+        {
+            _settingsService = settingsService;
             _videoLibraryService = new VideoLibraryService();
             _playbackService = new PlaybackService();
 
@@ -118,6 +123,8 @@ namespace GridVids.ViewModels
             _selectedScrollDirection = !string.IsNullOrEmpty(settings.SelectedScrollDirection) ? settings.SelectedScrollDirection : "Up";
             _isScrollDown = _selectedScrollDirection == "Down";
             _selectedDelay = settings.SelectedDelay > 0 ? settings.SelectedDelay : 10.0;
+            _selectedCycleDelay = settings.SelectedCycleDelay > 0 ? settings.SelectedCycleDelay : 10.0;
+            _isCycleModesEnabled = settings.IsCycleModesEnabled;
 
             if (!string.IsNullOrEmpty(settings.SelectedDisplayMode))
             {
@@ -201,7 +208,11 @@ namespace GridVids.ViewModels
                 {
                     if (!t.IsFaulted)
                     {
-                        if (IsScrollEnabled) StartScroll();
+                        if (IsCycleModesEnabled)
+                        {
+                            StartCycleModes();
+                        }
+                        else if (IsScrollEnabled) StartScroll();
                         else if (IsCollageEnabled) _ = StartCollage();
                         else _ = ExecutePlayback();
                     }
@@ -239,9 +250,11 @@ namespace GridVids.ViewModels
             {
                 IsStackableEnabled = false;
             }
-            if (IsScrollEnabled)
+            if (IsScrollEnabled && !_isUpdatingDisplayMode)
             {
-                StartScroll(GetCurrentActiveVideoBatch());
+                var batch = GetCurrentActiveVideoBatch();
+                if (batch.Count == 0 && _currentVideoBatch.Count > 0) batch = _currentVideoBatch.ToList();
+                StartScroll(batch);
             }
             else if (!string.IsNullOrEmpty(VideoPath) && !_suppressAutoRun)
             {
@@ -292,9 +305,11 @@ namespace GridVids.ViewModels
             {
                 IsStackableEnabled = false;
             }
-            if (IsScrollEnabled)
+            if (IsScrollEnabled && !_isUpdatingDisplayMode)
             {
-                StartScroll(GetCurrentActiveVideoBatch());
+                var batch = GetCurrentActiveVideoBatch();
+                if (batch.Count == 0 && _currentVideoBatch.Count > 0) batch = _currentVideoBatch.ToList();
+                StartScroll(batch);
             }
             else if (!string.IsNullOrEmpty(VideoPath) && !_suppressAutoRun)
             {
@@ -375,6 +390,7 @@ namespace GridVids.ViewModels
                 SelectedGrid1 = SelectedGrid1,
                 SelectedGrid2 = SelectedGrid2,
                 SelectedDelay = SelectedDelay,
+                SelectedCycleDelay = SelectedCycleDelay,
                 SelectedRandomize = SelectedRandomize,
                 IsStackableEnabled = IsStackableEnabled,
                 IsScrollEnabled = IsScrollEnabled,
@@ -486,9 +502,10 @@ namespace GridVids.ViewModels
                     videos = new List<string>(initialVideos);
                     if (videos.Count < slots.Count)
                     {
-                        var needed = slots.Count - videos.Count;
-                        var extra = await _videoLibraryService.GetRandomVideosAsync(needed, videos.ToHashSet(), IsSingleVidEnabled);
-                        videos.AddRange(extra);
+                        while (videos.Count < slots.Count)
+                        {
+                            videos.Add(initialVideos[videos.Count % initialVideos.Count]);
+                        }
                     }
                     else if (videos.Count > slots.Count)
                     {
@@ -895,9 +912,10 @@ namespace GridVids.ViewModels
                     selectedVideos = new List<string>(specificVideoList);
                     if (selectedVideos.Count < VideoSlots.Count)
                     {
-                        var needed = VideoSlots.Count - selectedVideos.Count;
-                        var extra = await _videoLibraryService.GetRandomVideosAsync(needed, selectedVideos.ToHashSet(), IsSingleVidEnabled);
-                        selectedVideos.AddRange(extra);
+                        while (selectedVideos.Count < VideoSlots.Count)
+                        {
+                            selectedVideos.Add(specificVideoList[selectedVideos.Count % specificVideoList.Count]);
+                        }
                     }
                     else if (selectedVideos.Count > VideoSlots.Count)
                     {
@@ -941,7 +959,7 @@ namespace GridVids.ViewModels
 
             if (IsCycleModesEnabled)
             {
-                UpdateCycleModesTimer();
+                UpdateCycleModesTimerForCurrentMode();
             }
 
             if (!IsStackableEnabled && !IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled)
@@ -974,13 +992,14 @@ namespace GridVids.ViewModels
         {
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
+            var existingBatch = GetCurrentActiveVideoBatch();
             Stop();
 
             await Task.Delay(150);
 
             if (IsScrollEnabled)
             {
-                StartScroll();
+                StartScroll(existingBatch);
             }
             else if (IsCollageEnabled)
             {
@@ -1049,6 +1068,7 @@ namespace GridVids.ViewModels
         };
         public ObservableCollection<string> GridSizeOptions { get; } = new();
         public ObservableCollection<double> DelayOptions { get; } = new();
+        public ObservableCollection<double> CycleDelayOptions { get; } = new();
         public ObservableCollection<string> RandomizeOptions { get; } = new()
         {
             "Multiple",
@@ -1077,8 +1097,15 @@ namespace GridVids.ViewModels
 
                 if (oldMode == value) return;
 
+                _pendingCycleModeSwitch = false;
+                _scrolledDistanceInCycle = 0.0;
+
                 ApplyModeTransition(oldMode, value);
                 SaveSettings();
+                if (IsCycleModesEnabled)
+                {
+                    UpdateCycleModesTimerForCurrentMode();
+                }
             }
             finally
             {
@@ -1090,6 +1117,10 @@ namespace GridVids.ViewModels
         {
             // Capture existing batch of videos BEFORE changing mode or stopping slots
             var existingBatch = GetCurrentActiveVideoBatch();
+            if (existingBatch.Count == 0 && _currentVideoBatch.Count > 0)
+            {
+                existingBatch = _currentVideoBatch.ToList();
+            }
 
             bool wasUsingVideoSlots = (oldMode == "Grid" || oldMode == "Auto-Swap" || oldMode == "Stackable" || oldMode == "Boomerang");
             bool willUseVideoSlots = (value == "Grid" || value == "Auto-Swap" || value == "Stackable" || value == "Boomerang");
@@ -1149,6 +1180,7 @@ namespace GridVids.ViewModels
             // Case 2: Transitioning to Scrolling Wall (Keep previous videos playing until scroll wall is ready)
             if (value == "Scrolling Wall")
             {
+                _scrolledDistanceInCycle = 0.0;
                 if (oldMode == "Auto-Swap") _swapTimer?.Stop();
                 if (oldMode == "Stackable")
                 {
@@ -1162,12 +1194,17 @@ namespace GridVids.ViewModels
                 IsBoomerangEnabled = false;
                 IsScrollEnabled = true;
 
+                if (existingBatch.Count > 0)
+                {
+                    _currentVideoBatch = existingBatch.ToList();
+                }
+
                 if (!string.IsNullOrEmpty(VideoPath))
                 {
                     _ = Task.Run(async () =>
                     {
                         await StartScrollAsync(existingBatch);
-                        await Task.Delay(300);
+                        await Task.Delay(600);
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         {
                             if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
@@ -1197,20 +1234,31 @@ namespace GridVids.ViewModels
                     ClearStackSlots();
                 }
                 if (oldMode == "Boomerang") StopBoomerang();
+                if (oldMode == "Scrolling Wall")
+                {
+                    _scrollTimer?.Stop();
+                    CleanUpOffScreenScrollSlots();
+                    IsScrollEnabled = false;
+                }
 
                 IsSwapEnabled = false;
                 IsStackableEnabled = false;
                 IsBoomerangEnabled = false;
-                IsCollageEnabled = true;
+
+                if (existingBatch.Count > 0)
+                {
+                    _currentVideoBatch = existingBatch.ToList();
+                }
 
                 if (!string.IsNullOrEmpty(VideoPath))
                 {
                     _ = Task.Run(async () =>
                     {
                         await StartCollage(existingBatch);
-                        await Task.Delay(200);
+                        await Task.Delay(1600);
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         {
+                            IsCollageEnabled = true;
                             if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
                             {
                                 _playbackService.Stop(VideoSlots);
@@ -1219,7 +1267,6 @@ namespace GridVids.ViewModels
                             if (ScrollSlots.Count > 0)
                             {
                                 StopScroll();
-                                IsScrollEnabled = false;
                             }
                         });
                     });
@@ -1231,21 +1278,34 @@ namespace GridVids.ViewModels
             // Case 4: Transitioning from Scrolling Wall or Collage to Grid / Auto-Swap / Stackable / Boomerang
             if (willUseVideoSlots)
             {
-                IsGridVisible = true;
-                UpdateGrid();
+                if (oldMode == "Scrolling Wall")
+                {
+                    // Immediately halt scroll velocity and purge off-screen slots to eliminate GPU/CPU contention
+                    _scrollTimer?.Stop();
+                    CleanUpOffScreenScrollSlots();
+                    IsScrollEnabled = false;
+                }
+
+                if (existingBatch.Count > 0)
+                {
+                    _currentVideoBatch = existingBatch.ToList();
+                }
 
                 if (!string.IsNullOrEmpty(VideoPath))
                 {
                     _ = Task.Run(async () =>
                     {
                         await ExecutePlayback(existingBatch);
-                        await Task.Delay(400);
+                        await Task.Delay(500);
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         {
+                            // Reveal the grid and hide previous scroll/collage simultaneously for seamless handoff
+                            IsGridVisible = true;
+                            UpdateGrid();
+
                             if (oldMode == "Scrolling Wall")
                             {
                                 StopScroll();
-                                IsScrollEnabled = false;
                             }
                             else if (oldMode == "Collage")
                             {
@@ -1272,6 +1332,13 @@ namespace GridVids.ViewModels
                         });
                     });
                 }
+                else
+                {
+                    IsGridVisible = true;
+                    UpdateGrid();
+                }
+
+                UpdateRandomizeTimer();
             }
         }
 
@@ -1303,6 +1370,12 @@ namespace GridVids.ViewModels
             DelayOptions.Add(0.5);
             for (int d = 1; d <= 4; d++) DelayOptions.Add(d);
             for (int d = 5; d <= 200; d += 5) DelayOptions.Add(d);
+
+            CycleDelayOptions.Add(5);
+            CycleDelayOptions.Add(10);
+            CycleDelayOptions.Add(15);
+            CycleDelayOptions.Add(20);
+            CycleDelayOptions.Add(30);
         }
 
         [ObservableProperty]
@@ -1494,6 +1567,8 @@ namespace GridVids.ViewModels
         private Avalonia.Threading.DispatcherTimer? _scrollTimer;
         private DateTime _lastScrollTick;
         private bool _isSpawningScrollRow = false;
+        private double _scrolledDistanceInCycle = 0.0;
+        private int _scrollVideoBatchIndex = 0;
         public ObservableCollection<string> ScrollDirectionOptions { get; } = new() { "Up", "Down" };
 
         [ObservableProperty]
@@ -1548,42 +1623,50 @@ namespace GridVids.ViewModels
 
             var sourceVideos = (initialVideos != null && initialVideos.Count > 0)
                 ? initialVideos
-                : _currentVideoBatch;
+                : (_currentVideoBatch.Count > 0 ? _currentVideoBatch : GetCurrentActiveVideoBatch());
 
-            var videoQueue = (sourceVideos != null && sourceVideos.Count > 0)
-                ? new Queue<string>(sourceVideos)
-                : new Queue<string>();
+            if (sourceVideos == null || sourceVideos.Count == 0)
+            {
+                int totalInitialSlots = (curRows + 1) * curCols;
+                sourceVideos = await _videoLibraryService.GetRandomVideosAsync(totalInitialSlots, null, IsSingleVidEnabled);
+            }
+
+            if (sourceVideos != null && sourceVideos.Count > 0)
+            {
+                _currentVideoBatch = sourceVideos.ToList();
+            }
+
+            _scrollVideoBatchIndex = 0;
+            Func<List<string>?> getNextRowVideos = () =>
+            {
+                if (sourceVideos == null || sourceVideos.Count == 0) return null;
+                var rowList = new List<string>();
+                for (int c = 0; c < curCols; c++)
+                {
+                    rowList.Add(sourceVideos[_scrollVideoBatchIndex % sourceVideos.Count]);
+                    _scrollVideoBatchIndex++;
+                }
+                return rowList;
+            };
 
             // Spawn initial rows for all visible rows on screen
             for (int r = 0; r < curRows; r++)
             {
-                var rowVideos = new List<string>();
-                while (rowVideos.Count < curCols && videoQueue.Count > 0)
-                {
-                    rowVideos.Add(videoQueue.Dequeue());
-                }
-                await SpawnScrollRowAsync(r * cellH, cellW, cellH, curCols, rowVideos.Count > 0 ? rowVideos : null);
+                var rowVideos = getNextRowVideos();
+                await SpawnScrollRowAsync(r * cellH, cellW, cellH, curCols, rowVideos);
             }
 
             if (SelectedScrollDirection == "Down")
             {
                 // Spawn 1 pre-loading row above viewport
-                var rowVideos = new List<string>();
-                while (rowVideos.Count < curCols && videoQueue.Count > 0)
-                {
-                    rowVideos.Add(videoQueue.Dequeue());
-                }
-                _ = SpawnScrollRowAsync(-cellH, cellW, cellH, curCols, rowVideos.Count > 0 ? rowVideos : null);
+                var rowVideos = getNextRowVideos();
+                _ = SpawnScrollRowAsync(-cellH, cellW, cellH, curCols, rowVideos);
             }
             else
             {
                 // Spawn 1 pre-loading row below viewport
-                var rowVideos = new List<string>();
-                while (rowVideos.Count < curCols && videoQueue.Count > 0)
-                {
-                    rowVideos.Add(videoQueue.Dequeue());
-                }
-                _ = SpawnScrollRowAsync(curRows * cellH, cellW, cellH, curCols, rowVideos.Count > 0 ? rowVideos : null);
+                var rowVideos = getNextRowVideos();
+                _ = SpawnScrollRowAsync(curRows * cellH, cellW, cellH, curCols, rowVideos);
             }
 
             _lastScrollTick = DateTime.Now;
@@ -1592,6 +1675,11 @@ namespace GridVids.ViewModels
 
         private void StartScroll(List<string>? initialVideos = null)
         {
+            initialVideos ??= GetCurrentActiveVideoBatch();
+            if (initialVideos == null || initialVideos.Count == 0)
+            {
+                initialVideos = _currentVideoBatch.Count > 0 ? _currentVideoBatch.ToList() : null;
+            }
             _ = StartScrollAsync(initialVideos);
         }
 
@@ -1608,6 +1696,20 @@ namespace GridVids.ViewModels
                 var slotsToStop = ScrollSlots.ToList();
                 ScrollSlots.Clear();
                 _playbackService.Stop(slotsToStop);
+            }
+        }
+
+        private void CleanUpOffScreenScrollSlots()
+        {
+            double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+            var offScreen = ScrollSlots.Where(s => (s.CollageY + s.CollageHeight) <= 0 || s.CollageY >= effectiveH).ToList();
+            if (offScreen.Count > 0)
+            {
+                foreach (var slot in offScreen)
+                {
+                    ScrollSlots.Remove(slot);
+                }
+                _playbackService.Stop(offScreen);
             }
         }
 
@@ -1662,13 +1764,30 @@ namespace GridVids.ViewModels
                             videos = new List<string>(rowVideos);
                             if (videos.Count < validSlots.Count)
                             {
-                                var needed = validSlots.Count - videos.Count;
-                                var extra = await _videoLibraryService.GetRandomVideosAsync(needed, videos.ToHashSet(), IsSingleVidEnabled);
-                                videos.AddRange(extra);
+                                while (videos.Count < validSlots.Count)
+                                {
+                                    videos.Add(rowVideos[videos.Count % rowVideos.Count]);
+                                }
                             }
                             else if (videos.Count > validSlots.Count)
                             {
                                 videos = videos.Take(validSlots.Count).ToList();
+                            }
+                        }
+                    }
+                    else if (_currentVideoBatch != null && _currentVideoBatch.Count > 0)
+                    {
+                        if (IsSingleVidEnabled)
+                        {
+                            videos = Enumerable.Repeat(_currentVideoBatch[0], validSlots.Count).ToList();
+                        }
+                        else
+                        {
+                            videos = new List<string>();
+                            for (int i = 0; i < validSlots.Count; i++)
+                            {
+                                videos.Add(_currentVideoBatch[_scrollVideoBatchIndex % _currentVideoBatch.Count]);
+                                _scrollVideoBatchIndex++;
                             }
                         }
                     }
@@ -1683,12 +1802,9 @@ namespace GridVids.ViewModels
                         {
                             validSlots[i].CurrentVideoPath = videos[i];
                         }
-                        foreach (var v in videos)
+                        if (_currentVideoBatch == null || _currentVideoBatch.Count == 0)
                         {
-                            if (!_currentVideoBatch.Contains(v))
-                            {
-                                _currentVideoBatch.Add(v);
-                            }
+                            _currentVideoBatch = videos.Distinct().ToList();
                         }
                         await _playbackService.PlayAsync(validSlots, videos);
                     }
@@ -1779,6 +1895,19 @@ namespace GridVids.ViewModels
                     }
                 }
             }
+
+            // 4. In Cycle mode, track distance scrolled to guarantee at least 2 full rows before switching
+            if (IsCycleModesEnabled && SelectedDisplayMode == "Scrolling Wall")
+            {
+                _scrolledDistanceInCycle += delta;
+                double twoRowsDistance = 2.0 * cellH;
+                if (_pendingCycleModeSwitch && _scrolledDistanceInCycle >= twoRowsDistance)
+                {
+                    _scrolledDistanceInCycle = 0.0;
+                    _pendingCycleModeSwitch = false;
+                    SwitchToRandomCycleMode();
+                }
+            }
         }
 
         [ObservableProperty]
@@ -1829,7 +1958,14 @@ namespace GridVids.ViewModels
             if (_swapTimer != null) _swapTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
             if (_randomizeTimer != null) _randomizeTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
             if (_stackTimer != null) _stackTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, value));
-            if (_cycleModesTimer != null) _cycleModesTimer.Interval = TimeSpan.FromSeconds(Math.Max(1.0, value));
+            SaveSettings();
+        }
+
+        [ObservableProperty]
+        private double _selectedCycleDelay = 10.0;
+        partial void OnSelectedCycleDelayChanged(double value)
+        {
+            if (_cycleModesTimer != null) UpdateCycleModesTimerForCurrentMode();
             SaveSettings();
         }
 
@@ -1839,23 +1975,52 @@ namespace GridVids.ViewModels
         private Avalonia.Threading.DispatcherTimer? _stackTimer;
         private Avalonia.Threading.DispatcherTimer? _boomerangTimer;
         private Avalonia.Threading.DispatcherTimer? _cycleModesTimer;
-        private int _cycleModeIndex = 0;
-        private readonly string[] _cycleModeSequence = { "Grid", "Auto-Swap", "Stackable", "Boomerang", "Scrolling Wall", "Collage" };
+        private readonly string[] _availableCycleModes =
+        {
+            "Boomerang",
+            "Collage",
+            "Grid",
+            "Scrolling Wall",
+            "Stackable"
+        };
 
         private void InitializeCycleModesTimer()
         {
             _cycleModesTimer = new Avalonia.Threading.DispatcherTimer();
             _cycleModesTimer.Tick += CycleModesTimer_Tick;
-            UpdateCycleModesTimer();
+            UpdateCycleModesTimerForCurrentMode();
         }
 
-        private void UpdateCycleModesTimer()
+        public double GetModeFlowDuration(string mode)
+        {
+            if (mode == "Scrolling Wall")
+            {
+                // Ensure at least 2 full rows are scrolled before switching, or SelectedCycleDelay, whichever is longer
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+                int curRows = Rows > 0 ? Rows : 2;
+                double rowH = effectiveH / (double)curRows;
+                double twoRowsDuration = (2.0 * rowH) / Math.Max(20.0, ScrollSpeed);
+                return Math.Max(SelectedCycleDelay, twoRowsDuration);
+            }
+            if (mode == "Stackable")
+            {
+                // Ensure the complete 4-quadrant reveal lifecycle + base refresh buffer finishes
+                // 4 quadrants * SelectedDelay + 1.5s refresh buffer
+                double stackFlowDuration = (Math.Max(0.1, SelectedDelay) * 4.0) + 1.5;
+                return Math.Max(SelectedCycleDelay, stackFlowDuration);
+            }
+            return Math.Max(2.0, SelectedCycleDelay);
+        }
+
+        private void UpdateCycleModesTimerForCurrentMode()
         {
             if (_cycleModesTimer == null) return;
-            _cycleModesTimer.Interval = TimeSpan.FromSeconds(Math.Max(1.0, SelectedDelay));
             if (IsCycleModesEnabled && IsVideoPlaying)
             {
-                if (!_cycleModesTimer.IsEnabled) _cycleModesTimer.Start();
+                double duration = GetModeFlowDuration(SelectedDisplayMode);
+                _cycleModesTimer.Interval = TimeSpan.FromSeconds(duration);
+                _cycleModesTimer.Stop();
+                _cycleModesTimer.Start();
             }
             else
             {
@@ -1865,28 +2030,62 @@ namespace GridVids.ViewModels
 
         private void StartCycleModes()
         {
+            _pendingCycleModeSwitch = false;
+            _scrolledDistanceInCycle = 0.0;
             if (_cycleModesTimer == null)
             {
                 InitializeCycleModesTimer();
             }
-            int idx = Array.IndexOf(_cycleModeSequence, SelectedDisplayMode);
-            _cycleModeIndex = idx >= 0 ? idx : 0;
-            UpdateCycleModesTimer();
+            // Immediately start selecting a random Display mode
+            SwitchToRandomCycleMode();
+            UpdateCycleModesTimerForCurrentMode();
         }
 
         private void StopCycleModes()
         {
+            _pendingCycleModeSwitch = false;
             _cycleModesTimer?.Stop();
         }
+
+        private void SwitchToRandomCycleMode()
+        {
+            if (!IsCycleModesEnabled) return;
+            _pendingCycleModeSwitch = false;
+            var otherModes = _availableCycleModes.Where(m => m != SelectedDisplayMode).ToList();
+            if (otherModes.Count == 0) return;
+
+            string nextMode = otherModes[_rnd.Next(otherModes.Count)];
+            SelectedDisplayMode = nextMode;
+        }
+
+        private bool _pendingCycleModeSwitch = false;
 
         private void CycleModesTimer_Tick(object? sender, EventArgs e)
         {
             if (!IsCycleModesEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath)) return;
-            int curIdx = Array.IndexOf(_cycleModeSequence, SelectedDisplayMode);
-            if (curIdx >= 0) _cycleModeIndex = curIdx;
-            _cycleModeIndex = (_cycleModeIndex + 1) % _cycleModeSequence.Length;
-            string nextMode = _cycleModeSequence[_cycleModeIndex];
-            SelectedDisplayMode = nextMode;
+
+            // If Stackable is actively mid-quadrant sequence (steps 1, 2, 3), let it complete the full 4 quadrants
+            if (SelectedDisplayMode == "Stackable" && _stackQuadrantStep > 0)
+            {
+                _pendingCycleModeSwitch = true;
+                return;
+            }
+
+            // If Scrolling Wall has not yet scrolled at least 2 full rows, let it finish scrolling before switching
+            if (SelectedDisplayMode == "Scrolling Wall")
+            {
+                int curRows = Rows > 0 ? Rows : 2;
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+                double cellH = effectiveH / (double)curRows;
+                double twoRowsDistance = 2.0 * cellH;
+                if (_scrolledDistanceInCycle < twoRowsDistance)
+                {
+                    _pendingCycleModeSwitch = true;
+                    return;
+                }
+            }
+
+            SwitchToRandomCycleMode();
         }
 
         private int _stackQuadrantStep = 0; // 0 = reveal Quad 1, 1 = reveal Quad 2, 2 = reveal Quad 3, 3 = reveal Quad 4
@@ -2148,6 +2347,13 @@ namespace GridVids.ViewModels
 
                     // Clear the overlays from the previous 4-stack cycle
                     ClearStackSlots();
+
+                    // If a cycle mode switch was delayed waiting for Stackable to finish its full flow, switch now
+                    if (_pendingCycleModeSwitch && IsCycleModesEnabled)
+                    {
+                        _pendingCycleModeSwitch = false;
+                        SwitchToRandomCycleMode();
+                    }
                 }
             }
             catch (Exception ex)
@@ -2260,9 +2466,9 @@ namespace GridVids.ViewModels
 
         private async Task PreloadNextSlotAsync()
         {
-            var activeSlots = IsScrollEnabled
-                ? ScrollSlots.Where(s => s.CollageY >= -50 && s.CollageY <= ContainerHeight && s.WindowHandle != IntPtr.Zero).ToList()
-                : VideoSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+            if (IsScrollEnabled) return;
+
+            var activeSlots = VideoSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
 
             if (_isPreloading || IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying || activeSlots.Count == 0) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
@@ -2371,7 +2577,7 @@ namespace GridVids.ViewModels
         {
             if (_randomizeTimer == null) return;
 
-            bool shouldRun = !IsSwapEnabled && SelectedRandomize != "None" && !IsStackableEnabled && (!IsScrollEnabled || SelectedRandomize == "Multiple");
+            bool shouldRun = !IsSwapEnabled && SelectedRandomize != "None" && !IsStackableEnabled && !IsScrollEnabled;
 
             if (shouldRun)
             {
@@ -2386,9 +2592,13 @@ namespace GridVids.ViewModels
             }
         }
 
+        public bool IsRandomizeTimerRunning => _randomizeTimer != null && _randomizeTimer.IsEnabled;
+
+        public IReadOnlyList<string> CurrentVideoBatch => _currentVideoBatch;
+
         private async void RandomizeTimer_Tick(object? sender, EventArgs e)
         {
-            if (IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying) return;
+            if (IsScrollEnabled || IsSwapEnabled || SelectedRandomize == "None" || IsStackableEnabled || !IsVideoPlaying) return;
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
             var activeSlots = IsScrollEnabled

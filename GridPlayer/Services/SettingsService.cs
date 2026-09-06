@@ -9,8 +9,14 @@ namespace GridVids.Services
     {
         private readonly string _settingsPath;
 
-        public SettingsService()
+        public SettingsService(string? customPath = null)
         {
+            if (!string.IsNullOrEmpty(customPath))
+            {
+                _settingsPath = customPath;
+                return;
+            }
+
             try
             {
                 // Save to AppData/Local/GridVids/settings.json
