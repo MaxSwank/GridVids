@@ -246,17 +246,36 @@ public partial class MainWindow : Window
                 }
             }
 
-            // 3. Auto-Hide
+            // 3. Auto-Hide & Settings Bar Hover Detection
+            var controlBar = this.FindControl<Control>("ControlBar");
+            var titleBar = this.FindControl<Control>("TitleBar");
+
+            // Calculate effective settings area height in client coordinates
+            // When controlBar is rendered, Bounds.Bottom gives the bottom coordinate of Row 1 (TitleBar + ControlBar)
+            double controlBarBottom = (controlBar != null && controlBar.Bounds.Bottom > 0) ? controlBar.Bounds.Bottom : 0;
+            double effectiveSettingsHeight = Math.Max(100.0, controlBarBottom);
+
+            // Determine if mouse is over the top settings/titlebar region
+            bool isMouseInSettingsArea = clientPoint.X >= 0 &&
+                                         clientPoint.X <= this.Bounds.Width &&
+                                         clientPoint.Y >= 0 &&
+                                         clientPoint.Y <= effectiveSettingsHeight;
+
+            if (isMouseInSettingsArea)
+            {
+                // Instantly wake up settings bar when mouse hovers over it
+                _lastMoveTime = DateTime.Now;
+                if (!vm.IsControlBarVisible || !vm.IsTitleBarVisible)
+                {
+                    vm.IsControlBarVisible = true;
+                    vm.IsTitleBarVisible = true;
+                }
+            }
+
             if (vm.IsAutoHideEnabled)
             {
-                // Pause auto-hide timer if mouse is hovering over top settings/titlebar area (Y <= 90)
-                if (clientPoint.Y >= 0 && clientPoint.Y <= 90 && clientPoint.X >= 0 && clientPoint.X <= this.Bounds.Width)
-                {
-                    _lastMoveTime = DateTime.Now;
-                }
-
                 var idleSeconds = (DateTime.Now - _lastMoveTime).TotalSeconds;
-                if (idleSeconds > InactivityThresholdSeconds)
+                if (idleSeconds > InactivityThresholdSeconds && !isMouseInSettingsArea)
                 {
                     vm.IsControlBarVisible = false;
                     vm.IsTitleBarVisible = false;
@@ -269,33 +288,23 @@ public partial class MainWindow : Window
             }
 
             // 4. Hide videos covering settings bar on hover
-            var controlBar = this.FindControl<Control>("ControlBar");
-            var titleBar = this.FindControl<Control>("TitleBar");
-            bool isControlBarActive = vm.IsControlBarVisible && controlBar != null && controlBar.IsVisible && controlBar.Bounds.Height > 0;
-
-            bool isMouseOverSettingsBar = false;
+            bool isMouseOverSettingsBar = isMouseInSettingsArea;
             Win32Interop.RECT settingsBarScreenRect = default;
 
-            if (isControlBarActive)
+            if (isMouseOverSettingsBar)
             {
-                double topY = (titleBar != null && titleBar.IsVisible) ? titleBar.Bounds.Top : controlBar!.Bounds.Top;
-                double bottomY = controlBar!.Bounds.Bottom;
-
-                var topLeftScreen = this.PointToScreen(new Point(0, topY));
-                var bottomRightScreen = this.PointToScreen(new Point(this.Bounds.Width, bottomY));
+                // Top screen coordinate of window content
+                var topLeftScreen = this.PointToScreen(new Point(0, 0));
+                // Bottom-right screen coordinate of settings area
+                var bottomRightScreen = this.PointToScreen(new Point(this.Bounds.Width, effectiveSettingsHeight));
 
                 settingsBarScreenRect = new Win32Interop.RECT
                 {
-                    Left = topLeftScreen.X,
-                    Top = topLeftScreen.Y,
-                    Right = bottomRightScreen.X,
-                    Bottom = bottomRightScreen.Y
+                    Left = Math.Min(topLeftScreen.X, bottomRightScreen.X),
+                    Top = Math.Min(topLeftScreen.Y, bottomRightScreen.Y),
+                    Right = Math.Max(topLeftScreen.X, bottomRightScreen.X),
+                    Bottom = Math.Max(topLeftScreen.Y, bottomRightScreen.Y)
                 };
-
-                isMouseOverSettingsBar = lpPoint.X >= settingsBarScreenRect.Left &&
-                                         lpPoint.X <= settingsBarScreenRect.Right &&
-                                         lpPoint.Y >= settingsBarScreenRect.Top &&
-                                         lpPoint.Y <= settingsBarScreenRect.Bottom;
             }
 
             var allSlots = vm.VideoSlots
@@ -321,17 +330,15 @@ public partial class MainWindow : Window
 
                     if (!isCoveringSettingsBar)
                     {
-                        // Fallback: check canvas bounds relative to settings bar
-                        double row2Top = controlBar!.Bounds.Bottom;
-                        double slotClientTop = row2Top + slot.EffectiveY;
+                        // Fallback: check slot coordinates in client space
+                        // In GridVids, GridContainer/StackContainer/ScrollContainer is Row 2,
+                        // but during stack/scroll animations or scrolling wall, slots can span or overlap client Y <= effectiveSettingsHeight.
+                        double slotClientTop = controlBarBottom + slot.EffectiveY;
                         double slotClientBottom = slotClientTop + slot.EffectiveHeight;
                         double slotClientLeft = slot.EffectiveX;
                         double slotClientRight = slotClientLeft + slot.EffectiveWidth;
 
-                        double settingsBarTop = (titleBar != null && titleBar.IsVisible) ? titleBar.Bounds.Top : controlBar.Bounds.Top;
-                        double settingsBarBottom = controlBar.Bounds.Bottom;
-
-                        bool yOverlap = slotClientTop < settingsBarBottom && slotClientBottom > settingsBarTop;
+                        bool yOverlap = slotClientTop < effectiveSettingsHeight && slotClientBottom > 0;
                         bool xOverlap = slotClientLeft < this.Bounds.Width && slotClientRight > 0;
 
                         if (yOverlap && xOverlap)

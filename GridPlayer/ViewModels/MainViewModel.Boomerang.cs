@@ -66,7 +66,8 @@ namespace GridVids.ViewModels
         {
             if (!IsBoomerangEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath)) return;
 
-            double totalDelay = Math.Max(0.5, SelectedDelay);
+            // In Cycle mode, the overall mode delay is SelectedCycleDelay; in standalone Boomerang mode, it's SelectedDelay.
+            double totalDelay = IsCycleModesEnabled ? Math.Max(0.5, SelectedCycleDelay) : Math.Max(0.5, SelectedDelay);
             double phaseLength = totalDelay / 3.0;
             var now = DateTime.UtcNow;
             var slotsToSwap = new List<VideoSlotViewModel>();

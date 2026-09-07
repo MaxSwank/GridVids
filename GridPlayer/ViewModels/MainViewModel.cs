@@ -1063,6 +1063,13 @@ namespace GridVids.ViewModels
 
         partial void OnIsCycleModesEnabledChanged(bool value)
         {
+            if (value)
+            {
+                if (SelectedCycleDelay <= 0 || !CycleDelayOptions.Contains(SelectedCycleDelay))
+                {
+                    SelectedCycleDelay = 10.0;
+                }
+            }
             SaveSettings();
             if (value)
             {
@@ -1172,6 +1179,12 @@ namespace GridVids.ViewModels
         private double _selectedCycleDelay = 10.0;
         partial void OnSelectedCycleDelayChanged(double value)
         {
+            if (CycleDelayOptions.Count > 0 && !CycleDelayOptions.Contains(value))
+            {
+                SelectedCycleDelay = 10.0;
+                return;
+            }
+
             if (_cycleModesTimer != null) UpdateCycleModesTimerForCurrentMode();
             SaveSettings();
         }

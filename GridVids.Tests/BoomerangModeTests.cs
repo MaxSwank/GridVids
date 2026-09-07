@@ -166,23 +166,24 @@ namespace GridVids.Tests
             vm.SelectedCycleDelay = 5.0;
             Assert.Equal(10.0, vm.GetModeFlowDuration("Scrolling Wall"));
 
-            // When Cycle is checked, it cycles display modes in alphabetical order:
-            // "Boomerang" -> "Grid" -> "Scrolling Wall" -> "Stackable" -> "Boomerang"
-            vm.SelectedDisplayMode = "Boomerang";
+            // When Cycle is checked, it cycles display modes in specified order:
+            // "Grid" -> "Stackable" -> "Boomerang" -> "Scrolling Wall" -> "Grid"
+            vm.SelectedDisplayMode = "Grid";
             vm.IsCycleModesEnabled = true;
-            Assert.Equal("Boomerang", vm.SelectedDisplayMode);
-
-            vm.SwitchToNextCycleMode();
             Assert.Equal("Grid", vm.SelectedDisplayMode);
-
-            vm.SwitchToNextCycleMode();
-            Assert.Equal("Scrolling Wall", vm.SelectedDisplayMode);
+            Assert.Equal(10.0, vm.SelectedCycleDelay);
 
             vm.SwitchToNextCycleMode();
             Assert.Equal("Stackable", vm.SelectedDisplayMode);
 
             vm.SwitchToNextCycleMode();
             Assert.Equal("Boomerang", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Scrolling Wall", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Grid", vm.SelectedDisplayMode);
 
             // Test setting persistence and restore on load
             var settings = new AppSettings
@@ -644,6 +645,64 @@ namespace GridVids.Tests
             var singleVideos = ResolveStackVideos(4, isSingleVid: true, library, baseExcluded);
             Assert.Equal(4, singleVideos.Count);
             Assert.Single(singleVideos.Distinct());
+        }
+
+        [Fact]
+        public void Test_CycleModes_LoadsFromPreviousSession_And_DefaultsToOff()
+        {
+            var tempSettingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                var settingsService = new SettingsService(tempSettingsPath);
+
+                // Fresh settings: IsCycleModesEnabled must default to false
+                var vmDefault = new MainViewModel(settingsService);
+                Assert.False(vmDefault.IsCycleModesEnabled);
+
+                // User checks Cycle: saves true
+                vmDefault.IsCycleModesEnabled = true;
+                Assert.True(vmDefault.IsCycleModesEnabled);
+
+                // Next session: loads true from previous session
+                var vmLoadedTrue = new MainViewModel(settingsService);
+                Assert.True(vmLoadedTrue.IsCycleModesEnabled);
+
+                // User unchecks Cycle: saves false
+                vmLoadedTrue.IsCycleModesEnabled = false;
+                Assert.False(vmLoadedTrue.IsCycleModesEnabled);
+
+                // Next session: loads false from previous session
+                var vmLoadedFalse = new MainViewModel(settingsService);
+                Assert.False(vmLoadedFalse.IsCycleModesEnabled);
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempSettingsPath))
+                {
+                    System.IO.File.Delete(tempSettingsPath);
+                }
+            }
+        }
+
+        [Fact]
+        public void Test_CycleDelay_DefaultsTo10s_And_CannotBeInvalidOrEmpty()
+        {
+            var vm = new MainViewModel();
+            Assert.Contains(10.0, vm.CycleDelayOptions);
+            Assert.NotEmpty(vm.CycleDelayOptions);
+
+            // Turn on Cycle -> defaults to 10s
+            vm.SelectedCycleDelay = 0; // if somehow set to invalid/empty
+            vm.IsCycleModesEnabled = true;
+            Assert.Equal(10.0, vm.SelectedCycleDelay);
+
+            // Attempting to assign a value outside CycleDelayOptions falls back to 10.0
+            vm.SelectedCycleDelay = 999.0;
+            Assert.Equal(10.0, vm.SelectedCycleDelay);
+
+            // Selecting a valid option works
+            vm.SelectedCycleDelay = 20.0;
+            Assert.Equal(20.0, vm.SelectedCycleDelay);
         }
 
         private (int Phase, bool IsForward, double Speed) GetBoomerangState(double elapsed, double totalDelay)

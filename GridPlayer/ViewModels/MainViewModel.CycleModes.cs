@@ -8,10 +8,10 @@ namespace GridVids.ViewModels
         private Avalonia.Threading.DispatcherTimer? _cycleModesTimer;
         private readonly string[] _availableCycleModes =
         {
-            "Boomerang",
             "Grid",
-            "Scrolling Wall",
-            "Stackable"
+            "Stackable",
+            "Boomerang",
+            "Scrolling Wall"
         };
         private bool _pendingCycleModeSwitch = false;
 
