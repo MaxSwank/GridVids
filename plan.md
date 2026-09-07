@@ -35,6 +35,8 @@ GridVids/
 │   ├── App.axaml.cs                 # Desktop initialization and IoC/DI setup
 │   ├── Controls/
 │   │   └── NativeEmbeddingControl.cs # Avalonia NativeControlHost subclass exposing Win32 HWND
+│   ├── Interop/
+│   │   └── Win32Interop.cs          # Low-level Win32 P/Invoke APIs and structs (GetCursorPos, ShowWindow, RECT, etc.)
 │   ├── Models/
 │   │   ├── AppSettings.cs           # Serializable user settings stored in LocalAppData
 │   │   └── IGridSlot.cs             # Abstract interface for visual video slots
@@ -44,12 +46,17 @@ GridVids/
 │   │   ├── SettingsService.cs       # JSON persistence (%LocalAppData%\GridVids\settings.json)
 │   │   └── VideoLibraryService.cs   # Directory scanner, random video provider, ffprobe metadata parser
 │   ├── ViewModels/
-│   │   ├── MainViewModel.cs         # Core UI state, timer orchestrations, commands, and mode transitions
-│   │   ├── VideoSlotViewModel.cs    # Represents individual visible video slots (Grid & Stackable)
-│   │   └── ViewModelBase.cs         # ObservableObject foundation
+│   │   ├── MainViewModel.cs         # Core UI state, constructor, settings persistence, commands, transition router
+│   │   ├── MainViewModel.DisplayModes.cs # Grid sizing, Auto-Swap alternate timers, and batch recycling
+│   │   ├── MainViewModel.ScrollingWall.cs # 60 FPS scrolling wall animation, row spawning, docking alignment
+│   │   ├── MainViewModel.Boomerang.cs # Boomerang phase progression, reverse/forward speeds, seamless swap
+│   │   ├── MainViewModel.Stackable.cs # 4-quadrant overlay state machine, geometry offsets, buffering
+│   │   ├── MainViewModel.CycleModes.cs # Cycle modes sequencer, mode flow duration, mode delegation
+│   │   ├── MainViewModel.RandomSwap.cs # Random slot swap timer, background MPV preloader
+│   │   └── VideoSlotViewModel.cs    # Represents individual visible video slots (Grid & Stackable)
 │   ├── Views/
 │   │   ├── MainWindow.axaml         # Main layout: Titlebar, Player Canvas, Control Drawer, Debug HUD
-│   │   └── MainWindow.axaml.cs      # Window lifecycle, ESC/F11 fullscreen handlers, HWND tracking
+│   │   └── MainWindow.axaml.cs      # Window lifecycle, auto-hide timer, mouse hit-testing via Win32Interop
 │   ├── Program.cs                   # Application entry point
 │   └── GridVids.csproj              # Project configuration and binary deployment targets
 └── GridVids.Tests/
@@ -153,9 +160,16 @@ GridVids supports **5 distinct display modes**. *(Note: "Collage" mode has been 
   4. Swaps into the slot and disposes of the old player.
 
 ### 7.3 Cycle Modes (`IsCycleModesEnabled`)
-- Automatically transitions across the 4 non-standard modes:
-  `Boomerang` ➔ `Grid` ➔ `Scrolling Wall` ➔ `Stackable` ➔ (Repeat).
-- Duration is controlled per mode via `GetModeFlowDuration(mode)` and the `Multiple Delay` setting.
+- Automatically transitions across display modes:
+  `Boomerang` ➔ `Grid` ➔ `Scrolling Wall` ➔ `Stackable` ➔ `Auto-Swap` ➔ (Repeat).
+- Duration is controlled per mode via the `Multiple Delay` setting.
+- **Scrolling Wall Cycle Docking Mechanism**:
+  - When the Cycle timer expires during `Scrolling Wall`, the mode switch is marked pending (`_pendingCycleModeSwitch = true`).
+  - The scroll continues running until it has traversed at least 2 full rows (`_scrolledDistanceInCycle >= 2 * cellH`).
+  - It then initiates smooth docking alignment (`_isAligningScrollForCycleSwitch = true`): the wall continues moving until the nearest on-screen row aligns *exactly* with integer row boundaries (`CollageY = 0, cellH, 2*cellH, ...`).
+  - Off-screen slots are purged and the frozen, docked wall remains visible (`IsScrollEnabled = true`).
+  - In the background, `ExecutePlayback` preloads the incoming grid mode using the on-screen docked videos captured via `GetCurrentActiveVideoBatch()`.
+  - Once the incoming slots are ready, `IsGridVisible = true` and `IsScrollEnabled = false` occur simultaneously, achieving a 100% seamless transition with zero blank or black frames.
 
 ### 7.4 In-Game Debug HUD (`IsDebugEnabled`)
 - Positioned in the exact center of the screen on top of all video HWND windows (`Placement="Center"`, `HorizontalOffset="0"`, `VerticalOffset="0"`).

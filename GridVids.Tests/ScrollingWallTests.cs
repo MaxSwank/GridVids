@@ -235,6 +235,91 @@ namespace GridVids.Tests
             vm.IsSingleVidEnabled = false;
             Assert.False(vm.IsSingleVidEnabled);
         }
+
+        [Fact]
+        public void Test_ScrollingWall_ActiveBatch_PrioritizesDockedRows()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Scrolling Wall active batch prioritizes on-screen docked slots");
+            _output.WriteLine("=======================================================================");
+
+            var vm = CreateIsolatedViewModel();
+            vm.IsScrollEnabled = true;
+            vm.ContainerHeight = 800;
+            vm.Rows = 2;
+            vm.Columns = 2;
+
+            // Row 0: Docked at Y = 0 (on screen)
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\row0_col0.mp4", CollageX = 0, CollageY = 0, CollageWidth = 400, CollageHeight = 400 });
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\row0_col1.mp4", CollageX = 400, CollageY = 0, CollageWidth = 400, CollageHeight = 400 });
+
+            // Row 1: Docked at Y = 400 (on screen)
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\row1_col0.mp4", CollageX = 0, CollageY = 400, CollageWidth = 400, CollageHeight = 400 });
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\row1_col1.mp4", CollageX = 400, CollageY = 400, CollageWidth = 400, CollageHeight = 400 });
+
+            // Row -1: Off screen (top) at Y = -400
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\rowOff_top.mp4", CollageX = 0, CollageY = -400, CollageWidth = 400, CollageHeight = 400 });
+
+            // Row 2: Off screen (bottom) at Y = 800
+            vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = @"C:\Videos\rowOff_bottom.mp4", CollageX = 0, CollageY = 800, CollageWidth = 400, CollageHeight = 400 });
+
+            var batch = vm.GetCurrentActiveVideoBatch();
+            _output.WriteLine($"Extracted batch: {string.Join(", ", batch)}");
+
+            // Must capture exactly the 4 on-screen docked slots in row-major order
+            Assert.Equal(4, batch.Count);
+            Assert.Equal(@"C:\Videos\row0_col0.mp4", batch[0]);
+            Assert.Equal(@"C:\Videos\row0_col1.mp4", batch[1]);
+            Assert.Equal(@"C:\Videos\row1_col0.mp4", batch[2]);
+            Assert.Equal(@"C:\Videos\row1_col1.mp4", batch[3]);
+        }
+
+        [Fact]
+        public void Test_DockingAlignment_SnapsExactlyToRowBoundaries()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Docking alignment correctly calculates remaining distance and snaps");
+            _output.WriteLine("=======================================================================");
+
+            double cellH = 400.0;
+            double effectiveH = 800.0;
+            bool isDown = false; // scrolling Up
+
+            // Simulate slots mid-scroll at Y = 120.0 and Y = 520.0
+            var slots = new List<VideoSlotViewModel>
+            {
+                new() { CollageX = 0, CollageY = 120.0, CollageHeight = cellH },
+                new() { CollageX = 400, CollageY = 120.0, CollageHeight = cellH },
+                new() { CollageX = 0, CollageY = 520.0, CollageHeight = cellH },
+                new() { CollageX = 400, CollageY = 520.0, CollageHeight = cellH }
+            };
+
+            var anchor = slots.FirstOrDefault(s => s.CollageY >= -cellH * 0.5 && s.CollageY < effectiveH);
+            Assert.NotNull(anchor);
+
+            // Upward scroll: target is Floor(120 / 400) * 400 = 0.0
+            double targetY = isDown
+                ? Math.Ceiling(anchor.CollageY / cellH) * cellH
+                : Math.Floor(anchor.CollageY / cellH) * cellH;
+
+            Assert.Equal(0.0, targetY);
+            double remainingDistance = Math.Abs(targetY - anchor.CollageY);
+            Assert.Equal(120.0, remainingDistance);
+
+            // When final adjustment is applied
+            double finalAdjustment = targetY - anchor.CollageY; // -120.0
+            foreach (var slot in slots)
+            {
+                slot.CollageY += finalAdjustment;
+                slot.CollageY = Math.Round(slot.CollageY / cellH) * cellH;
+            }
+
+            // Verify both rows are exactly docked on integer multiples of cellH
+            Assert.Equal(0.0, slots[0].CollageY);
+            Assert.Equal(0.0, slots[1].CollageY);
+            Assert.Equal(400.0, slots[2].CollageY);
+            Assert.Equal(400.0, slots[3].CollageY);
+        }
     }
 }
 

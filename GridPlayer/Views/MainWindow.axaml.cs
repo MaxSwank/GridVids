@@ -2,10 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Platform.Storage;
+using GridVids.Interop;
 using GridVids.ViewModels;
 using System;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace GridVids.Views;
@@ -171,7 +171,7 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm) return;
 
-        if (GetCursorPos(out POINT lpPoint))
+        if (Win32Interop.GetCursorPos(out Win32Interop.POINT lpPoint))
         {
             var screenPoint = new PixelPoint(lpPoint.X, lpPoint.Y);
             var clientPoint = this.PointToClient(screenPoint);
@@ -200,7 +200,7 @@ public partial class MainWindow : Window
             }
 
             // 2. Metadata Hover Logic (3 second delay)
-            IntPtr hoveredHwnd = WindowFromPoint(lpPoint);
+            IntPtr hoveredHwnd = Win32Interop.WindowFromPoint(lpPoint);
             VideoSlotViewModel? hoveredSlot = null;
 
             if (hoveredHwnd != IntPtr.Zero)
@@ -214,7 +214,7 @@ public partial class MainWindow : Window
                     // Break if we reach the main window handle to avoid climbing too high
                     if (current == this.TryGetPlatformHandle()?.Handle) break;
 
-                    current = GetParent(current);
+                    current = Win32Interop.GetParent(current);
                 }
             }
 
@@ -274,7 +274,7 @@ public partial class MainWindow : Window
             bool isControlBarActive = vm.IsControlBarVisible && controlBar != null && controlBar.IsVisible && controlBar.Bounds.Height > 0;
 
             bool isMouseOverSettingsBar = false;
-            RECT settingsBarScreenRect = default;
+            Win32Interop.RECT settingsBarScreenRect = default;
 
             if (isControlBarActive)
             {
@@ -284,7 +284,7 @@ public partial class MainWindow : Window
                 var topLeftScreen = this.PointToScreen(new Point(0, topY));
                 var bottomRightScreen = this.PointToScreen(new Point(this.Bounds.Width, bottomY));
 
-                settingsBarScreenRect = new RECT
+                settingsBarScreenRect = new Win32Interop.RECT
                 {
                     Left = topLeftScreen.X,
                     Top = topLeftScreen.Y,
@@ -310,7 +310,7 @@ public partial class MainWindow : Window
                 {
                     if (slot.WindowHandle != IntPtr.Zero)
                     {
-                        if (GetWindowRect(slot.WindowHandle, out RECT videoRect))
+                        if (Win32Interop.GetWindowRect(slot.WindowHandle, out Win32Interop.RECT videoRect))
                         {
                             isCoveringSettingsBar = videoRect.Left < settingsBarScreenRect.Right &&
                                                     videoRect.Right > settingsBarScreenRect.Left &&
@@ -348,7 +348,7 @@ public partial class MainWindow : Window
                         slot.IsHiddenBySettingsBar = true;
                         if (slot.WindowHandle != IntPtr.Zero)
                         {
-                            ShowWindow(slot.WindowHandle, 0); // SW_HIDE
+                            Win32Interop.ShowWindow(slot.WindowHandle, Win32Interop.SW_HIDE);
                         }
                     }
                 }
@@ -359,7 +359,7 @@ public partial class MainWindow : Window
                         slot.IsHiddenBySettingsBar = false;
                         if (slot.WindowHandle != IntPtr.Zero)
                         {
-                            ShowWindow(slot.WindowHandle, 5); // SW_SHOW
+                            Win32Interop.ShowWindow(slot.WindowHandle, Win32Interop.SW_SHOW);
                         }
                     }
                 }
@@ -367,38 +367,6 @@ public partial class MainWindow : Window
         }
     }
 
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool GetCursorPos(out POINT lpPoint);
-
-    [DllImport("user32.dll")]
-    internal static extern IntPtr WindowFromPoint(POINT point);
-
-    [DllImport("user32.dll")]
-    internal static extern IntPtr GetParent(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll")]
-    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct POINT
-    {
-        public int X;
-        public int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct RECT
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
 
     private async Task<string?> ShowFolderPickerAsync()
     {
