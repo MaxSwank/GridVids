@@ -210,7 +210,7 @@
                 <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <TextBlock Text="⚡ RANDOMIZE &amp; TIMING" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <CheckBox Content="Random Swap" IsChecked="{Binding IsRandomSwapEnabled}" VerticalAlignment="Center" IsEnabled="{Binding IsRandomizeEnabled}"/>
+                        <CheckBox Content="Random Swap" IsChecked="{Binding IsRandomSwapEnabled}" VerticalAlignment="Center"/>
                         <TextBlock Text="Randomize Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}" Foreground="#e5e5ea"/>
                         <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="65" IsEnabled="{Binding IsDelayEnabled}"/>
                     </StackPanel>

@@ -377,7 +377,7 @@ namespace GridVids.ViewModels
                         _isAligningScrollForCycleSwitch = false;
                         _pendingCycleModeSwitch = false;
                         _scrolledDistanceInCycle = 0.0;
-                        SwitchToRandomCycleMode();
+                        SwitchToNextCycleMode();
                         return;
                     }
 
@@ -403,7 +403,7 @@ namespace GridVids.ViewModels
                         _isAligningScrollForCycleSwitch = false;
                         _pendingCycleModeSwitch = false;
                         _scrolledDistanceInCycle = 0.0;
-                        SwitchToRandomCycleMode();
+                        SwitchToNextCycleMode();
                         return;
                     }
                 }

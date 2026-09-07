@@ -68,8 +68,7 @@ namespace GridVids.ViewModels
             {
                 InitializeCycleModesTimer();
             }
-            // Immediately start selecting a random Display mode
-            SwitchToRandomCycleMode();
+            // Keep currently selected display mode as the starting point and start timer for subsequent alpha transitions
             UpdateCycleModesTimerForCurrentMode();
         }
 
@@ -80,23 +79,22 @@ namespace GridVids.ViewModels
             _cycleModesTimer?.Stop();
         }
 
-        private void SwitchToRandomCycleMode()
+        public void SwitchToNextCycleMode()
         {
             if (!IsCycleModesEnabled) return;
             _pendingCycleModeSwitch = false;
-            var otherModes = _availableCycleModes.Where(m => m != SelectedDisplayMode).ToList();
-            if (otherModes.Count == 0) return;
 
-            string nextMode = otherModes[_rnd.Next(otherModes.Count)];
-            SelectedDisplayMode = nextMode;
+            int currentIndex = Array.IndexOf(_availableCycleModes, SelectedDisplayMode);
+            int nextIndex = (currentIndex < 0) ? 0 : (currentIndex + 1) % _availableCycleModes.Length;
+            SelectedDisplayMode = _availableCycleModes[nextIndex];
         }
 
         private void CycleModesTimer_Tick(object? sender, EventArgs e)
         {
             if (!IsCycleModesEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath)) return;
 
-            // If Stackable is actively mid-quadrant sequence (steps 1, 2, 3), let it complete the full 4 quadrants
-            if (SelectedDisplayMode == "Stackable" && _stackQuadrantStep > 0)
+            // If Stackable is active, let it complete its 4-quadrant stacking sequence
+            if (SelectedDisplayMode == "Stackable")
             {
                 _pendingCycleModeSwitch = true;
                 return;
@@ -110,7 +108,7 @@ namespace GridVids.ViewModels
                 return;
             }
 
-            SwitchToRandomCycleMode();
+            SwitchToNextCycleMode();
         }
     }
 }

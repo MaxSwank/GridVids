@@ -167,7 +167,23 @@ namespace GridVids.ViewModels
             UpdateGrid();
             ValidateDelay();
             SaveSettings();
-            if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
+            if (SelectedDisplayMode == "Stackable")
+            {
+                if (Rows != 2)
+                {
+                    _suppressAutoRun = true;
+                    try { Rows = 2; }
+                    finally { _suppressAutoRun = false; }
+                }
+                if (Columns != 2 && Columns != 4)
+                {
+                    _suppressAutoRun = true;
+                    try { Columns = 2; }
+                    finally { _suppressAutoRun = false; }
+                }
+                IsStackableEnabled = true;
+            }
+            else if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
             {
                 IsStackableEnabled = false;
             }
@@ -222,7 +238,23 @@ namespace GridVids.ViewModels
             UpdateGrid();
             ValidateDelay();
             SaveSettings();
-            if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
+            if (SelectedDisplayMode == "Stackable")
+            {
+                if (Rows != 2)
+                {
+                    _suppressAutoRun = true;
+                    try { Rows = 2; }
+                    finally { _suppressAutoRun = false; }
+                }
+                if (Columns != 2 && Columns != 4)
+                {
+                    _suppressAutoRun = true;
+                    try { Columns = 2; }
+                    finally { _suppressAutoRun = false; }
+                }
+                IsStackableEnabled = true;
+            }
+            else if (IsStackableEnabled && (Rows != 2 || (Columns != 2 && Columns != 4)))
             {
                 IsStackableEnabled = false;
             }
@@ -362,18 +394,7 @@ namespace GridVids.ViewModels
                     selectedVideos = new List<string>(distinctInitial);
                     if (selectedVideos.Count < VideoSlots.Count)
                     {
-                        var excluded = new HashSet<string>(selectedVideos);
-                        var moreVids = await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count - selectedVideos.Count, excluded, isSingleVidMode: false);
-                        selectedVideos.AddRange(moreVids);
-
-                        // If still short, query without exclusion to avoid repeating a single video
-                        if (selectedVideos.Count < VideoSlots.Count)
-                        {
-                            var unconstrained = await _videoLibraryService.GetRandomVideosAsync(VideoSlots.Count - selectedVideos.Count, null, isSingleVidMode: false);
-                            selectedVideos.AddRange(unconstrained);
-                        }
-
-                        // If library has fewer videos than total slots, only then loop over distinct videos
+                        // Strictly recycle/loop through the existing videos without querying the library
                         int idx = 0;
                         while (selectedVideos.Count < VideoSlots.Count && distinctInitial.Count > 0)
                         {
@@ -587,23 +608,30 @@ namespace GridVids.ViewModels
             bool wasUsingVideoSlots = (oldMode == "Grid" || oldMode == "Auto-Swap" || oldMode == "Stackable" || oldMode == "Boomerang");
             bool willUseVideoSlots = (value == "Grid" || value == "Auto-Swap" || value == "Stackable" || value == "Boomerang");
 
-            // Case 1: Seamless switch between Grid, Auto-Swap, Stackable, and Boomerang (all share VideoSlots - NEVER STOP)
+            // Case 1: Seamless switch between Grid, Auto-Swap, Stackable, and Boomerang
             if (wasUsingVideoSlots && willUseVideoSlots)
             {
                 if (oldMode == "Auto-Swap") _swapTimer?.Stop();
+                if (oldMode == "Boomerang") StopBoomerang();
+
+                bool transitioningFromStackable = (oldMode == "Stackable" && value != "Stackable");
+
                 if (oldMode == "Stackable")
                 {
                     _stackTimer?.Stop();
-                    ClearStackSlots();
+                    // If transitioning to another mode, do NOT clear stack slots immediately;
+                    // keep them displayed so there is zero blank space while incoming VideoSlots start.
+                    if (!transitioningFromStackable)
+                    {
+                        ClearStackSlots();
+                    }
                 }
-                if (oldMode == "Boomerang") StopBoomerang();
 
                 IsScrollEnabled = false;
                 IsGridVisible = true;
 
                 if (value == "Auto-Swap")
                 {
-                    IsStackableEnabled = false;
                     IsBoomerangEnabled = false;
                     IsSwapEnabled = true;
                     UpdateGrid();
@@ -613,6 +641,11 @@ namespace GridVids.ViewModels
                 {
                     IsSwapEnabled = false;
                     IsBoomerangEnabled = false;
+                    Rows = 2;
+                    if (Columns != 2 && Columns != 4)
+                    {
+                        Columns = 2;
+                    }
                     IsStackableEnabled = true;
                     UpdateGrid();
                     UpdateStackTimer();
@@ -620,7 +653,6 @@ namespace GridVids.ViewModels
                 else if (value == "Boomerang")
                 {
                     IsSwapEnabled = false;
-                    IsStackableEnabled = false;
                     IsBoomerangEnabled = true;
                     UpdateGrid();
                     StartBoomerang();
@@ -628,10 +660,40 @@ namespace GridVids.ViewModels
                 else // "Grid"
                 {
                     IsSwapEnabled = false;
-                    IsStackableEnabled = false;
                     IsBoomerangEnabled = false;
                     _isShowingGrid1 = true;
                     UpdateGrid();
+                }
+
+                if (transitioningFromStackable && existingBatch.Count > 0 && !string.IsNullOrEmpty(VideoPath))
+                {
+                    // Incoming mode needs the video batch that was visible in Stackable.
+                    // Keep StackSlots visible until the new VideoSlots start decoding.
+                    _ = Task.Run(async () =>
+                    {
+                        await ExecutePlayback(existingBatch);
+                        await Task.Delay(600);
+                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        {
+                            if (SelectedDisplayMode == "Stackable") return;
+
+                            _isUpdatingDisplayMode = true;
+                            try
+                            {
+                                IsStackableEnabled = false;
+                                ClearStackSlots();
+                            }
+                            finally
+                            {
+                                _isUpdatingDisplayMode = false;
+                            }
+                        });
+                    });
+                }
+                else if (transitioningFromStackable)
+                {
+                    IsStackableEnabled = false;
+                    ClearStackSlots();
                 }
 
                 UpdateRandomizeTimer();
@@ -643,15 +705,14 @@ namespace GridVids.ViewModels
             {
                 _scrolledDistanceInCycle = 0.0;
                 if (oldMode == "Auto-Swap") _swapTimer?.Stop();
+                if (oldMode == "Boomerang") StopBoomerang();
                 if (oldMode == "Stackable")
                 {
                     _stackTimer?.Stop();
-                    ClearStackSlots();
+                    // Keep StackSlots overlay visible while Scrolling Wall buffers
                 }
-                if (oldMode == "Boomerang") StopBoomerang();
 
                 IsSwapEnabled = false;
-                IsStackableEnabled = false;
                 IsBoomerangEnabled = false;
                 IsScrollEnabled = true;
 
@@ -668,14 +729,36 @@ namespace GridVids.ViewModels
                         await Task.Delay(600);
                         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                         {
-                            if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
+                            if (SelectedDisplayMode == "Stackable") return;
+
+                            _isUpdatingDisplayMode = true;
+                            try
                             {
-                                _playbackService.Stop(VideoSlots);
-                                IsGridVisible = false;
+                                if (oldMode == "Stackable")
+                                {
+                                    IsStackableEnabled = false;
+                                    ClearStackSlots();
+                                }
+
+                                if (VideoSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited))
+                                {
+                                    _playbackService.Stop(VideoSlots);
+                                    IsGridVisible = false;
+                                }
+                            }
+                            finally
+                            {
+                                _isUpdatingDisplayMode = false;
                             }
                         });
                     });
                 }
+                else if (oldMode == "Stackable")
+                {
+                    IsStackableEnabled = false;
+                    ClearStackSlots();
+                }
+
                 UpdateRandomizeTimer();
                 return;
             }
@@ -722,6 +805,11 @@ namespace GridVids.ViewModels
                             }
                             else if (value == "Stackable")
                             {
+                                Rows = 2;
+                                if (Columns != 2 && Columns != 4)
+                                {
+                                    Columns = 2;
+                                }
                                 IsStackableEnabled = true;
                                 UpdateStackTimer();
                             }
@@ -777,7 +865,6 @@ namespace GridVids.ViewModels
             for (int d = 1; d <= 4; d++) DelayOptions.Add(d);
             for (int d = 5; d <= 200; d += 5) DelayOptions.Add(d);
 
-            CycleDelayOptions.Add(5);
             CycleDelayOptions.Add(10);
             CycleDelayOptions.Add(15);
             CycleDelayOptions.Add(20);

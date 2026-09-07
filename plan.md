@@ -170,6 +170,12 @@ GridVids supports **5 distinct display modes**. *(Note: "Collage" mode has been 
   - Off-screen slots are purged and the frozen, docked wall remains visible (`IsScrollEnabled = true`).
   - In the background, `ExecutePlayback` preloads the incoming grid mode using the on-screen docked videos captured via `GetCurrentActiveVideoBatch()`.
   - Once the incoming slots are ready, `IsGridVisible = true` and `IsScrollEnabled = false` occur simultaneously, achieving a 100% seamless transition with zero blank or black frames.
+- **Stackable Cycle Transition Mechanism**:
+  - When the Cycle timer expires during `Stackable`, the switch is marked pending (`_pendingCycleModeSwitch = true`).
+  - Rather than abruptly clearing the quad overlay or reloading the base grid, the 4th quadrant completes its cycle step and triggers `SwitchToRandomCycleMode()` directly.
+  - `GetCurrentActiveVideoBatch()` prioritizes the active, visible `StackSlots` quadrant videos first (followed by base `VideoSlots`).
+  - During the transition (`ApplyModeTransition`), the `StackSlots` overlay remains visible on screen while the incoming mode (`Grid`, `Auto-Swap`, `Boomerang`, or `Scrolling Wall`) starts decoding the identical batch of videos in the background.
+  - After a 600ms grace period allowing native MPV processes to buffer and render their initial frames, `StackSlots` are cleanly cleared without any blank space or flashing.
 
 ### 7.4 In-Game Debug HUD (`IsDebugEnabled`)
 - Positioned in the exact center of the screen on top of all video HWND windows (`Placement="Center"`, `HorizontalOffset="0"`, `VerticalOffset="0"`).

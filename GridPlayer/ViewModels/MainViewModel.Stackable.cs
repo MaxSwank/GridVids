@@ -107,6 +107,16 @@ namespace GridVids.ViewModels
                     // The 4 stack videos have completed.
                     _stackQuadrantStep = 0;
 
+                    // If a cycle mode switch was delayed waiting for Stackable to finish its full flow, switch now!
+                    // Do NOT refresh base grid or clear stack slots here; let ApplyModeTransition seamlessly
+                    // pass the active StackSlots batch to the incoming mode while preserving the visual overlay.
+                    if (_pendingCycleModeSwitch && IsCycleModesEnabled)
+                    {
+                        _pendingCycleModeSwitch = false;
+                        SwitchToNextCycleMode();
+                        return;
+                    }
+
                     // Refresh base grid videos
                     await ExecutePlayback();
 
@@ -115,13 +125,6 @@ namespace GridVids.ViewModels
 
                     // Clear the overlays from the previous 4-stack cycle
                     ClearStackSlots();
-
-                    // If a cycle mode switch was delayed waiting for Stackable to finish its full flow, switch now
-                    if (_pendingCycleModeSwitch && IsCycleModesEnabled)
-                    {
-                        _pendingCycleModeSwitch = false;
-                        SwitchToRandomCycleMode();
-                    }
                 }
             }
             catch (Exception ex)
@@ -174,6 +177,12 @@ namespace GridVids.ViewModels
             }
 
             var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+            var invalidSlots = newSlots.Where(s => s.WindowHandle == IntPtr.Zero).ToList();
+            foreach (var inv in invalidSlots)
+            {
+                StackSlots.Remove(inv);
+            }
+
             if (validSlots.Count > 0 && IsStackableEnabled)
             {
                 var excluded = VideoSlots.Concat(StackSlots)
@@ -182,7 +191,24 @@ namespace GridVids.ViewModels
                     .Cast<string>()
                     .ToHashSet();
 
-                var vids = await GetRecycledOrFreshVideosAsync(validSlots.Count, excluded, preferExclusion: false);
+                List<string> vids;
+                if (IsSingleVidEnabled)
+                {
+                    vids = await GetRecycledOrFreshVideosAsync(validSlots.Count, excluded, preferExclusion: false);
+                }
+                else
+                {
+                    // Random stacked videos for each grid slot
+                    vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, isSingleVidMode: false);
+                    if (vids.Count < validSlots.Count)
+                    {
+                        // If library has fewer videos than needed after excluding active ones, fetch unconstrained random
+                        int remaining = validSlots.Count - vids.Count;
+                        var fallback = await _videoLibraryService.GetRandomVideosAsync(remaining, null, isSingleVidMode: false);
+                        vids.AddRange(fallback);
+                    }
+                }
+
                 if (vids.Count > 0)
                 {
                     for (int i = 0; i < validSlots.Count && i < vids.Count; i++)
@@ -201,6 +227,21 @@ namespace GridVids.ViewModels
                     {
                         s.IsCollageVisible = true;
                     }
+                }
+                else
+                {
+                    foreach (var s in validSlots)
+                    {
+                        StackSlots.Remove(s);
+                    }
+                }
+            }
+            else if (validSlots.Count == 0)
+            {
+                // No slots obtained window handles; remove all newSlots
+                foreach (var s in newSlots)
+                {
+                    StackSlots.Remove(s);
                 }
             }
         }

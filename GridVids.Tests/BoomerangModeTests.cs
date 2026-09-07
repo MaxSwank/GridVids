@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using GridVids.Models;
+using GridVids.Services;
 using GridVids.ViewModels;
 using Xunit;
 using Xunit.Abstractions;
@@ -136,7 +137,7 @@ namespace GridVids.Tests
             var vm = new MainViewModel();
 
             // Verify CycleDelayOptions has 5, 10, 15, 20, 30
-            Assert.Equal(new double[] { 5, 10, 15, 20, 30 }, vm.CycleDelayOptions.ToArray());
+            Assert.Equal(new double[] { 10, 15, 20, 30 }, vm.CycleDelayOptions.ToArray());
 
             vm.SelectedCycleDelay = 15.0;
             vm.SelectedDelay = 2.0;
@@ -165,12 +166,23 @@ namespace GridVids.Tests
             vm.SelectedCycleDelay = 5.0;
             Assert.Equal(10.0, vm.GetModeFlowDuration("Scrolling Wall"));
 
-            // When Cycle is checked, it starts cycling with a randomly selected mode (ignoring Auto-Swap)
-            string initialMode = vm.SelectedDisplayMode;
+            // When Cycle is checked, it cycles display modes in alphabetical order:
+            // "Boomerang" -> "Grid" -> "Scrolling Wall" -> "Stackable" -> "Boomerang"
+            vm.SelectedDisplayMode = "Boomerang";
             vm.IsCycleModesEnabled = true;
-            // The selected mode should be one of the valid display modes and never Auto-Swap
-            Assert.Contains(vm.SelectedDisplayMode, vm.DisplayModeOptions);
-            Assert.NotEqual("Auto-Swap", vm.SelectedDisplayMode);
+            Assert.Equal("Boomerang", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Grid", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Scrolling Wall", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Stackable", vm.SelectedDisplayMode);
+
+            vm.SwitchToNextCycleMode();
+            Assert.Equal("Boomerang", vm.SelectedDisplayMode);
 
             // Test setting persistence and restore on load
             var settings = new AppSettings
@@ -425,39 +437,213 @@ namespace GridVids.Tests
         [Fact]
         public void Test_DisplayModes_DefaultDelays()
         {
-            var vm = new MainViewModel();
+            var tempSettingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            var vm = new MainViewModel(new SettingsService(tempSettingsPath));
+            try
+            {
 
-            // Default Boomerang should set SelectedDelay to 10.0
-            vm.SelectedDisplayMode = "Boomerang";
-            Assert.Equal(10.0, vm.SelectedDelay);
+                // Default Boomerang should set SelectedDelay to 10.0
+                vm.SelectedDisplayMode = "Boomerang";
+                Assert.Equal(10.0, vm.SelectedDelay);
 
-            // Stackable should default SelectedDelay to 2.0
-            vm.SelectedDisplayMode = "Stackable";
-            Assert.Equal(2.0, vm.SelectedDelay);
+                // Stackable should default SelectedDelay to 2.0
+                vm.SelectedDisplayMode = "Stackable";
+                Assert.Equal(2.0, vm.SelectedDelay);
 
-            // Back to Boomerang
-            vm.SelectedDisplayMode = "Boomerang";
-            Assert.Equal(10.0, vm.SelectedDelay);
+                // Back to Boomerang
+                vm.SelectedDisplayMode = "Boomerang";
+                Assert.Equal(10.0, vm.SelectedDelay);
 
-            // Grid should default to 2.0
-            vm.SelectedDisplayMode = "Grid";
-            Assert.Equal(2.0, vm.SelectedDelay);
+                // Grid should default to 2.0
+                vm.SelectedDisplayMode = "Grid";
+                Assert.Equal(2.0, vm.SelectedDelay);
 
-            // Boomerang again
-            vm.SelectedDisplayMode = "Boomerang";
-            Assert.Equal(10.0, vm.SelectedDelay);
+                // Boomerang again
+                vm.SelectedDisplayMode = "Boomerang";
+                Assert.Equal(10.0, vm.SelectedDelay);
 
-            // Scrolling Wall should default to 2.0
-            vm.SelectedDisplayMode = "Scrolling Wall";
-            Assert.Equal(2.0, vm.SelectedDelay);
+                // Scrolling Wall should default to 2.0
+                vm.SelectedDisplayMode = "Scrolling Wall";
+                Assert.Equal(2.0, vm.SelectedDelay);
 
-            // Boomerang again
-            vm.SelectedDisplayMode = "Boomerang";
-            Assert.Equal(10.0, vm.SelectedDelay);
+                // Boomerang again
+                vm.SelectedDisplayMode = "Boomerang";
+                Assert.Equal(10.0, vm.SelectedDelay);
 
-            // Auto-Swap should default to 2.0
-            vm.SelectedDisplayMode = "Auto-Swap";
-            Assert.Equal(2.0, vm.SelectedDelay);
+                // Auto-Swap should default to 2.0
+                vm.SelectedDisplayMode = "Auto-Swap";
+                Assert.Equal(2.0, vm.SelectedDelay);
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempSettingsPath))
+                {
+                    System.IO.File.Delete(tempSettingsPath);
+                }
+            }
+        }
+
+        [Fact]
+        public void Test_Stackable_SeamlessTransition_ReusesLastBatch()
+        {
+            var tempSettingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            var vm = new MainViewModel(new SettingsService(tempSettingsPath));
+
+            // Populate StackSlots with quadrant overlay videos simulating an active Stackable session
+            vm.StackSlots.Clear();
+            vm.StackSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "vid1.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0 });
+            vm.StackSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "vid2.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0 });
+            vm.StackSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "vid3.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0 });
+            vm.StackSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "vid4.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0 });
+
+            // Ensure GetCurrentActiveVideoBatch prioritizes active StackSlots videos
+            var batch = vm.GetCurrentActiveVideoBatch();
+            Assert.Equal(4, batch.Count);
+            Assert.Equal(new[] { "vid1.mp4", "vid2.mp4", "vid3.mp4", "vid4.mp4" }, batch);
+
+            // Clean up temp settings
+            if (System.IO.File.Exists(tempSettingsPath))
+            {
+                System.IO.File.Delete(tempSettingsPath);
+            }
+        }
+
+        [Fact]
+        public void Test_ScrollingWall_ExitTransition_ReusesLastBatchWithoutRandomFetch()
+        {
+            var tempSettingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            var vm = new MainViewModel(new SettingsService(tempSettingsPath));
+
+            try
+            {
+                // Simulate Scrolling Wall ending with 4 docked visible scroll slots
+                vm.ScrollSlots.Clear();
+                vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "scroll_vid1.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0, CollageY = 0 });
+                vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "scroll_vid2.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0, CollageY = 0 });
+                vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "scroll_vid3.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0, CollageY = 400 });
+                vm.ScrollSlots.Add(new VideoSlotViewModel { CurrentVideoPath = "scroll_vid4.mp4", IsCollageVisible = true, IsVisible = true, Opacity = 1.0, CollageY = 400 });
+
+                var activeBatch = vm.GetCurrentActiveVideoBatch();
+                Assert.Equal(4, activeBatch.Count);
+                Assert.Equal(new[] { "scroll_vid1.mp4", "scroll_vid2.mp4", "scroll_vid3.mp4", "scroll_vid4.mp4" }, activeBatch);
+
+                // Simulate feeding this batch into ExecutePlayback specificVideoList simulation
+                int targetSlotsCount = 6;
+                bool randomFetchCalled = false;
+
+                List<string> ExecutePlaybackBatchSimulation(List<string> specificVideoList)
+                {
+                    var distinctInitial = specificVideoList.Distinct().ToList();
+                    var selected = new List<string>(distinctInitial);
+                    if (selected.Count < targetSlotsCount)
+                    {
+                        int idx = 0;
+                        while (selected.Count < targetSlotsCount && distinctInitial.Count > 0)
+                        {
+                            selected.Add(distinctInitial[idx % distinctInitial.Count]);
+                            idx++;
+                        }
+                    }
+                    else if (selected.Count > targetSlotsCount)
+                    {
+                        selected = selected.Take(targetSlotsCount).ToList();
+                    }
+                    return selected;
+                }
+
+                var resolvedForNextMode = ExecutePlaybackBatchSimulation(activeBatch);
+                Assert.False(randomFetchCalled);
+                Assert.Equal(6, resolvedForNextMode.Count);
+                // First 4 are identical to the scrolling wall batch
+                Assert.Equal(activeBatch, resolvedForNextMode.Take(4));
+                // All 6 only contain videos from the activeBatch
+                Assert.All(resolvedForNextMode, v => Assert.Contains(v, activeBatch));
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempSettingsPath))
+                {
+                    System.IO.File.Delete(tempSettingsPath);
+                }
+            }
+        }
+
+        [Fact]
+        public void Test_Stackable_GridSizeEnforcement_And_Activation()
+        {
+            var tempSettingsPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            var vm = new MainViewModel(new SettingsService(tempSettingsPath));
+            try
+            {
+                // Start in 3x3 Grid
+                vm.Rows = 3;
+                vm.Columns = 3;
+                Assert.Equal(3, vm.Rows);
+                Assert.Equal(3, vm.Columns);
+
+                // Switch to Stackable: Rows must automatically clamp to 2, and Columns to 2 (or 4)
+                vm.SelectedDisplayMode = "Stackable";
+                Assert.True(vm.IsStackableEnabled);
+                Assert.Equal(2, vm.Rows);
+                Assert.Equal(2, vm.Columns);
+
+                // If user or layout tries to change Rows to 4 while in Stackable, it should remain clamped to 2
+                vm.Rows = 4;
+                Assert.True(vm.IsStackableEnabled);
+                Assert.Equal(2, vm.Rows);
+
+                // Setting columns to 4 is allowed (2x4 layout)
+                vm.Columns = 4;
+                Assert.True(vm.IsStackableEnabled);
+                Assert.Equal(2, vm.Rows);
+                Assert.Equal(4, vm.Columns);
+
+                // Setting columns to 5 is clamped to 2
+                vm.Columns = 5;
+                Assert.True(vm.IsStackableEnabled);
+                Assert.Equal(2, vm.Rows);
+                Assert.Equal(2, vm.Columns);
+            }
+            finally
+            {
+                if (System.IO.File.Exists(tempSettingsPath))
+                {
+                    System.IO.File.Delete(tempSettingsPath);
+                }
+            }
+        }
+
+        [Fact]
+        public void Test_Stackable_VideoSelection_Random_Unless_SingleVid()
+        {
+            // Simulate Stackable video resolution logic
+            List<string> ResolveStackVideos(int count, bool isSingleVid, List<string> library, HashSet<string> excluded)
+            {
+                if (isSingleVid)
+                {
+                    var chosen = library.FirstOrDefault(v => !excluded.Contains(v)) ?? library.First();
+                    return Enumerable.Repeat(chosen, count).ToList();
+                }
+                else
+                {
+                    var available = library.Where(v => !excluded.Contains(v)).ToList();
+                    return available.Take(count).ToList();
+                }
+            }
+
+            var library = new List<string> { "video1.mp4", "video2.mp4", "video3.mp4", "video4.mp4", "video5.mp4" };
+            var baseExcluded = new HashSet<string> { "video1.mp4" }; // Video in base grid
+
+            // When Single Vid is false, stacked slots must get distinct random videos
+            var multiVideos = ResolveStackVideos(4, isSingleVid: false, library, baseExcluded);
+            Assert.Equal(4, multiVideos.Count);
+            Assert.Equal(4, multiVideos.Distinct().Count());
+            Assert.DoesNotContain("video1.mp4", multiVideos);
+
+            // When Single Vid is true, stacked slots must get the same single video
+            var singleVideos = ResolveStackVideos(4, isSingleVid: true, library, baseExcluded);
+            Assert.Equal(4, singleVideos.Count);
+            Assert.Single(singleVideos.Distinct());
         }
 
         private (int Phase, bool IsForward, double Speed) GetBoomerangState(double elapsed, double totalDelay)

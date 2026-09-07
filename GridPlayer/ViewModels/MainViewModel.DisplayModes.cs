@@ -16,7 +16,7 @@ namespace GridVids.ViewModels
         {
             var list = new List<string>();
 
-            if (IsScrollEnabled && ScrollSlots.Count > 0)
+            if (IsScrollEnabled || ScrollSlots.Count > 0)
             {
                 double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
                 // Prioritize on-screen docked slots (e.g. slots within [0, effectiveH))
@@ -46,6 +46,31 @@ namespace GridVids.ViewModels
                         .Where(p => !string.IsNullOrEmpty(p))
                         .ToList();
                 }
+            }
+            else if (IsStackableEnabled || StackSlots.Count > 0)
+            {
+                // In Stackable mode, the 4 active quadrant overlay videos are in StackSlots.
+                // We prioritize visible StackSlots first (the overlay videos the user is actively viewing),
+                // followed by underlying base VideoSlots.
+                var stackVids = StackSlots
+                    .Where(s => !string.IsNullOrEmpty(s.CurrentVideoPath) && s.IsCollageVisible)
+                    .Select(s => s.CurrentVideoPath)
+                    .ToList();
+
+                if (stackVids.Count == 0)
+                {
+                    stackVids = StackSlots
+                        .Where(s => !string.IsNullOrEmpty(s.CurrentVideoPath))
+                        .Select(s => s.CurrentVideoPath)
+                        .ToList();
+                }
+
+                var baseVids = VideoSlots
+                    .Where(s => !string.IsNullOrEmpty(s.CurrentVideoPath))
+                    .Select(s => s.CurrentVideoPath)
+                    .ToList();
+
+                list = stackVids.Concat(baseVids).ToList();
             }
             else if (VideoSlots.Count > 0)
             {
