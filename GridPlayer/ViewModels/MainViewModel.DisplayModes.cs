@@ -204,9 +204,23 @@ namespace GridVids.ViewModels
             }
 
             // Add missing
+            var activeVideos = (_currentVideoBatch != null && _currentVideoBatch.Count > 0)
+                ? _currentVideoBatch
+                : VideoSlots.Select(s => s.CurrentVideoPath).Where(p => !string.IsNullOrEmpty(p)).ToList();
+
+            if (activeVideos.Count > 0 && (_currentVideoBatch == null || _currentVideoBatch.Count == 0))
+            {
+                _currentVideoBatch = activeVideos.ToList();
+            }
+
             while (VideoSlots.Count < total)
             {
-                VideoSlots.Add(new VideoSlotViewModel { Index = VideoSlots.Count });
+                var newSlot = new VideoSlotViewModel { Index = VideoSlots.Count };
+                if (IsVideoPlaying && activeVideos.Count > 0)
+                {
+                    newSlot.CurrentVideoPath = activeVideos[newSlot.Index % activeVideos.Count];
+                }
+                VideoSlots.Add(newSlot);
             }
         }
 

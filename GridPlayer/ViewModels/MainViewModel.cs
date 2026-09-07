@@ -695,6 +695,17 @@ namespace GridVids.ViewModels
                     IsStackableEnabled = false;
                     ClearStackSlots();
                 }
+                else if (IsVideoPlaying && !string.IsNullOrEmpty(VideoPath))
+                {
+                    // For transitions between other video-slot modes (e.g. Grid -> Stackable, Grid -> Boomerang, etc.),
+                    // ensure all base grid slots are actively playing with non-empty videos.
+                    bool needsPlayback = (value == "Stackable") ||
+                                         VideoSlots.Any(s => string.IsNullOrEmpty(s.CurrentVideoPath) || s.CurrentProcess == null || s.CurrentProcess.HasExited);
+                    if (needsPlayback)
+                    {
+                        _ = ExecutePlayback(existingBatch.Count > 0 ? existingBatch : null);
+                    }
+                }
 
                 UpdateRandomizeTimer();
                 return;
@@ -775,6 +786,17 @@ namespace GridVids.ViewModels
                     CleanUpOffScreenScrollSlots();
                 }
 
+                if (value == "Stackable")
+                {
+                    Rows = 2;
+                    if (Columns != 2 && Columns != 4)
+                    {
+                        Columns = 2;
+                    }
+                    IsStackableEnabled = true;
+                    UpdateGrid();
+                }
+
                 if (existingBatch.Count > 0)
                 {
                     _currentVideoBatch = existingBatch.ToList();
@@ -805,12 +827,6 @@ namespace GridVids.ViewModels
                             }
                             else if (value == "Stackable")
                             {
-                                Rows = 2;
-                                if (Columns != 2 && Columns != 4)
-                                {
-                                    Columns = 2;
-                                }
-                                IsStackableEnabled = true;
                                 UpdateStackTimer();
                             }
                             else if (value == "Boomerang")

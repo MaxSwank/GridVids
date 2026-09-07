@@ -176,12 +176,60 @@ namespace GridVids.ViewModels
         {
             if (string.IsNullOrWhiteSpace(VideoPath)) return;
 
+            // Pre-resolve videos for these slots so CurrentVideoPath is never empty
+            List<string> videos;
+            if (rowVideos != null && rowVideos.Count > 0)
+            {
+                if (IsSingleVidEnabled)
+                {
+                    videos = Enumerable.Repeat(rowVideos[0], cols).ToList();
+                }
+                else
+                {
+                    videos = new List<string>(rowVideos);
+                    while (videos.Count < cols)
+                    {
+                        videos.Add(rowVideos[videos.Count % rowVideos.Count]);
+                    }
+                    if (videos.Count > cols)
+                    {
+                        videos = videos.Take(cols).ToList();
+                    }
+                }
+            }
+            else if (_currentVideoBatch != null && _currentVideoBatch.Count > 0)
+            {
+                if (IsSingleVidEnabled)
+                {
+                    videos = Enumerable.Repeat(_currentVideoBatch[0], cols).ToList();
+                }
+                else
+                {
+                    videos = new List<string>();
+                    for (int i = 0; i < cols; i++)
+                    {
+                        videos.Add(_currentVideoBatch[_scrollVideoBatchIndex % _currentVideoBatch.Count]);
+                        _scrollVideoBatchIndex++;
+                    }
+                }
+            }
+            else
+            {
+                videos = await _videoLibraryService.GetRandomVideosAsync(cols, null, IsSingleVidEnabled);
+                if (videos.Count > 0 && (_currentVideoBatch == null || _currentVideoBatch.Count == 0))
+                {
+                    _currentVideoBatch = videos.Distinct().ToList();
+                }
+            }
+
             var newSlots = new List<VideoSlotViewModel>();
             for (int c = 0; c < cols; c++)
             {
                 double x1 = Math.Round(c * cellW);
                 double x2 = Math.Round((c + 1) * cellW);
                 double w = x2 - x1;
+
+                string videoPath = (videos.Count > 0) ? videos[c % videos.Count] : "";
 
                 var slot = new VideoSlotViewModel
                 {
@@ -190,6 +238,7 @@ namespace GridVids.ViewModels
                     CollageWidth = w,
                     CollageHeight = cellH,
                     Opacity = 1.0,
+                    CurrentVideoPath = videoPath,
                     IsCollageVisible = true,
                     Index = ScrollSlots.Count + newSlots.Count
                 };
@@ -209,64 +258,10 @@ namespace GridVids.ViewModels
                 }
 
                 var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
-                if (validSlots.Count > 0)
+                if (validSlots.Count > 0 && videos.Count > 0)
                 {
-                    List<string> videos;
-                    if (rowVideos != null && rowVideos.Count > 0)
-                    {
-                        if (IsSingleVidEnabled)
-                        {
-                            videos = Enumerable.Repeat(rowVideos[0], validSlots.Count).ToList();
-                        }
-                        else
-                        {
-                            videos = new List<string>(rowVideos);
-                            if (videos.Count < validSlots.Count)
-                            {
-                                while (videos.Count < validSlots.Count)
-                                {
-                                    videos.Add(rowVideos[videos.Count % rowVideos.Count]);
-                                }
-                            }
-                            else if (videos.Count > validSlots.Count)
-                            {
-                                videos = videos.Take(validSlots.Count).ToList();
-                            }
-                        }
-                    }
-                    else if (_currentVideoBatch != null && _currentVideoBatch.Count > 0)
-                    {
-                        if (IsSingleVidEnabled)
-                        {
-                            videos = Enumerable.Repeat(_currentVideoBatch[0], validSlots.Count).ToList();
-                        }
-                        else
-                        {
-                            videos = new List<string>();
-                            for (int i = 0; i < validSlots.Count; i++)
-                            {
-                                videos.Add(_currentVideoBatch[_scrollVideoBatchIndex % _currentVideoBatch.Count]);
-                                _scrollVideoBatchIndex++;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        videos = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, null, IsSingleVidEnabled);
-                    }
-
-                    if (videos.Count > 0)
-                    {
-                        for (int i = 0; i < validSlots.Count && i < videos.Count; i++)
-                        {
-                            validSlots[i].CurrentVideoPath = videos[i];
-                        }
-                        if (_currentVideoBatch == null || _currentVideoBatch.Count == 0)
-                        {
-                            _currentVideoBatch = videos.Distinct().ToList();
-                        }
-                        await _playbackService.PlayAsync(validSlots, videos);
-                    }
+                    var playVideos = validSlots.Select(s => s.CurrentVideoPath).ToList();
+                    await _playbackService.PlayAsync(validSlots, playVideos);
                 }
             });
         }

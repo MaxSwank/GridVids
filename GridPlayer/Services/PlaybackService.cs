@@ -74,8 +74,23 @@ namespace GridVids.Services
             var tasks = new List<Task>();
             var slotList = new List<IGridSlot>(slots);
 
+            if (slotList.Count == 0 || videos.Count == 0) return;
+
+            // Ensure we have enough videos for all slots by recycling cyclically
+            var videoList = new List<string>(videos);
+            if (videoList.Count < slotList.Count)
+            {
+                int originalCount = videoList.Count;
+                int idx = 0;
+                while (videoList.Count < slotList.Count)
+                {
+                    videoList.Add(videos[idx % originalCount]);
+                    idx++;
+                }
+            }
+
             var videoInstanceCounts = new Dictionary<string, int>();
-            foreach (var video in videos)
+            foreach (var video in videoList)
             {
                 if (videoInstanceCounts.ContainsKey(video))
                     videoInstanceCounts[video]++;
@@ -93,10 +108,10 @@ namespace GridVids.Services
 
             for (int i = 0; i < slotList.Count; i++)
             {
-                if (i < videos.Count)
+                if (i < videoList.Count)
                 {
                     var slot = slotList[i];
-                    var video = videos[i];
+                    var video = videoList[i];
                     
                     int totalInstances = videoInstanceCounts[video];
                     int instanceIndex = videoInstanceIndices[video].Pop();
@@ -104,7 +119,6 @@ namespace GridVids.Services
                     tasks.Add(TransitionSlotAsync(slot, video, totalInstances, instanceIndex));
                 }
             }
-
             await Task.WhenAll(tasks);
         }
 
