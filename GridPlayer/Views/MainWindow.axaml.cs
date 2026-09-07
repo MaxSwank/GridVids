@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Platform.Storage;
 using GridVids.ViewModels;
 using System;
@@ -55,7 +56,7 @@ public partial class MainWindow : Window
             GridVids.Services.PlaybackService.KillAllMpvProcesses();
         };
 
-        this.Opened += (s, e) =>
+        this.Opened += async (s, e) =>
         {
             if (DataContext is MainViewModel vm)
             {
@@ -64,6 +65,12 @@ public partial class MainWindow : Window
                     WindowState = WindowState.Maximized;
                 }
                 UpdateFullScreenState();
+                UpdateDebugPopupPosition();
+
+                if (!string.IsNullOrWhiteSpace(vm.VideoPath))
+                {
+                    await vm.Play();
+                }
             }
         };
 
@@ -121,7 +128,18 @@ public partial class MainWindow : Window
                 activeVm.ContainerHeight = e.NewSize.Height;
                 UpdateFullScreenState();
             }
+            UpdateDebugPopupPosition();
         };
+
+        var debugPopup = this.FindControl<Popup>("DebugPopup");
+        if (debugPopup != null)
+        {
+            debugPopup.Opened += (s, e) => UpdateDebugPopupPosition();
+            if (debugPopup.Child is Control child)
+            {
+                child.SizeChanged += (s, e) => UpdateDebugPopupPosition();
+            }
+        }
 
         // Polling Timer for Auto-Hide and Clicks
         _pollingTimer = new Avalonia.Threading.DispatcherTimer
@@ -130,6 +148,16 @@ public partial class MainWindow : Window
         };
         _pollingTimer.Tick += PollingTimer_Tick;
         _pollingTimer.Start();
+    }
+
+    private void UpdateDebugPopupPosition()
+    {
+        var popup = this.FindControl<Popup>("DebugPopup");
+        if (popup != null)
+        {
+            popup.HorizontalOffset = 0;
+            popup.VerticalOffset = 0;
+        }
     }
 
     private Avalonia.Threading.DispatcherTimer _pollingTimer;
@@ -180,7 +208,7 @@ public partial class MainWindow : Window
                 IntPtr current = hoveredHwnd;
                 while (current != IntPtr.Zero)
                 {
-                    hoveredSlot = vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).Concat(vm.ScrollSlots).FirstOrDefault(s => s.WindowHandle == current);
+                    hoveredSlot = vm.VideoSlots.Concat(vm.StackSlots).Concat(vm.ScrollSlots).FirstOrDefault(s => s.WindowHandle == current);
                     if (hoveredSlot != null) break;
                     
                     // Break if we reach the main window handle to avoid climbing too high
@@ -190,7 +218,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            foreach (var slot in vm.VideoSlots.Concat(vm.CollageSlots).Concat(vm.StackSlots).Concat(vm.ScrollSlots))
+            foreach (var slot in vm.VideoSlots.Concat(vm.StackSlots).Concat(vm.ScrollSlots))
             {
                 if (slot == hoveredSlot)
                 {
@@ -271,7 +299,6 @@ public partial class MainWindow : Window
             }
 
             var allSlots = vm.VideoSlots
-                .Concat(vm.CollageSlots)
                 .Concat(vm.StackSlots)
                 .Concat(vm.ScrollSlots);
 

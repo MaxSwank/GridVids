@@ -85,15 +85,7 @@ namespace GridVids.ViewModels
         // Force Height to be derived from Width to lock Aspect Ratio (16:9)
         public double EffectiveHeight => Math.Round(CollageHeight);
 
-        // State for Seamless Replacement
-        [ObservableProperty]
-        private bool _isExpired;
 
-        [ObservableProperty]
-        private bool _isDying;
-
-        public bool HasIncomingReplacement { get; set; }
-        public VideoSlotViewModel? Replaces { get; set; }
 
         public DateTime BoomerangStartTime { get; set; } = DateTime.MinValue;
         public int BoomerangPhase { get; set; } = 0;
@@ -194,7 +186,7 @@ namespace GridVids.ViewModels
                         // an7: Top-Left, fs18: Font size, bord1: border, b1: Bold
                         // We use double backslashes for the ASS tags in the string.
                         string safeName = FileName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-                        string text = $"File: {safeName}\\nFPS: {FrameRate}\\nBitrate: {BitRate}";
+                        string text = $"File: {safeName} FPS: {FrameRate} Bitrate: {BitRate}";
                         var cmd = new { command = new object[] { "show-text", text, 1000000 } };
                         SendIpcCommand(System.Text.Json.JsonSerializer.Serialize(cmd));
                     }

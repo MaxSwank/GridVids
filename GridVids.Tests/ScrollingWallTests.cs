@@ -135,5 +135,106 @@ namespace GridVids.Tests
             vm.Columns = 5;
             Assert.Equal(initialVideos, vm.CurrentVideoBatch);
         }
+
+        [Fact]
+        public void Test_BatchRecycling_AcrossModes()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Batch recycling across modes preserves existing active videos");
+            _output.WriteLine("=======================================================================");
+
+            var vm = CreateIsolatedViewModel();
+
+            var initialVideos = new List<string>
+            {
+                @"C:\Videos\clip1.mp4",
+                @"C:\Videos\clip2.mp4",
+                @"C:\Videos\clip3.mp4"
+            };
+
+            for (int i = 0; i < initialVideos.Count; i++)
+            {
+                vm.VideoSlots.Add(new VideoSlotViewModel
+                {
+                    Index = i,
+                    CurrentVideoPath = initialVideos[i],
+                    IsVisible = true
+                });
+            }
+
+            var batch = vm.GetCurrentActiveVideoBatch();
+            Assert.Equal(initialVideos.Count, batch.Count);
+            Assert.Equal(initialVideos, vm.CurrentVideoBatch);
+
+            // Mode transitions: Auto-Swap, Stackable, Boomerang
+            vm.SelectedDisplayMode = "Auto-Swap";
+            Assert.Equal(initialVideos, vm.CurrentVideoBatch);
+
+            vm.SelectedDisplayMode = "Stackable";
+            Assert.Equal(initialVideos, vm.CurrentVideoBatch);
+
+            vm.SelectedDisplayMode = "Boomerang";
+            Assert.Equal(initialVideos, vm.CurrentVideoBatch);
+        }
+
+        [Fact]
+        public void Test_RandomSwap_Checkbox_Toggles_Timer_And_Settings()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Random Swap checkbox controls randomize timer and synchronize state");
+            _output.WriteLine("=======================================================================");
+
+            var vm = CreateIsolatedViewModel();
+
+            vm.SelectedDisplayMode = "Grid";
+            Assert.False(vm.IsRandomSwapEnabled);
+            Assert.Equal("None", vm.SelectedRandomize);
+            Assert.False(vm.IsRandomizeTimerRunning);
+
+            // Enabling Random Swap starts randomize timer
+            vm.IsRandomSwapEnabled = true;
+            Assert.True(vm.IsRandomSwapEnabled);
+            Assert.Equal("Multiple", vm.SelectedRandomize);
+            Assert.True(vm.IsRandomizeTimerRunning);
+
+            // Disabling Random Swap stops randomize timer
+            vm.IsRandomSwapEnabled = false;
+            Assert.False(vm.IsRandomSwapEnabled);
+            Assert.Equal("None", vm.SelectedRandomize);
+            Assert.False(vm.IsRandomizeTimerRunning);
+        }
+
+        [Fact]
+        public void Test_SingleVid_Only_Active_When_Checked()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Single Vid mode is only active when explicitly checked");
+            _output.WriteLine("=======================================================================");
+
+            var vm = CreateIsolatedViewModel();
+
+            // Single Vid is unchecked by default
+            Assert.False(vm.IsSingleVidEnabled);
+
+            // Populate slots with distinct videos
+            var videos = new List<string> { @"C:\Videos\a.mp4", @"C:\Videos\b.mp4", @"C:\Videos\c.mp4", @"C:\Videos\d.mp4" };
+            for (int i = 0; i < videos.Count; i++)
+            {
+                vm.VideoSlots.Add(new VideoSlotViewModel { Index = i, CurrentVideoPath = videos[i], IsVisible = true });
+            }
+
+            var batch = vm.GetCurrentActiveVideoBatch();
+            Assert.Equal(4, batch.Count);
+            Assert.Equal(4, batch.Distinct().Count()); // All slots are distinct when IsSingleVidEnabled is false
+
+            // When Single Vid is checked, IsSingleVidEnabled becomes true
+            vm.IsSingleVidEnabled = true;
+            Assert.True(vm.IsSingleVidEnabled);
+
+            // When Single Vid is unchecked again, IsSingleVidEnabled becomes false
+            vm.IsSingleVidEnabled = false;
+            Assert.False(vm.IsSingleVidEnabled);
+        }
     }
 }
+

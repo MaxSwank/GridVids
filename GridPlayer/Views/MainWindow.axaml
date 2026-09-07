@@ -38,7 +38,7 @@
         </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid Name="RootGrid" RowDefinitions="Auto,Auto,*">
         <!-- Video Grid -->
         <ItemsControl Grid.Row="2" Name="GridContainer" ItemsSource="{Binding VideoSlots}" IsVisible="{Binding IsGridVisible}">
             <ItemsControl.ItemsPanel>
@@ -148,43 +148,7 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <!-- Collage View -->
-        <ItemsControl Grid.Row="2" Name="CollageContainer" ItemsSource="{Binding CollageSlots}" IsVisible="{Binding IsCollageEnabled}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas Background="Transparent"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.Styles>
-                <Style Selector="ContentPresenter" x:DataType="vm:VideoSlotViewModel">
-                    <Setter Property="Canvas.Left" Value="{Binding EffectiveX}"/>
-                    <Setter Property="Canvas.Top" Value="{Binding EffectiveY}"/>
-                    <Setter Property="Width" Value="{Binding EffectiveWidth}"/>
-                    <Setter Property="Height" Value="{Binding EffectiveHeight}"/>
-                    <Setter Property="Opacity" Value="{Binding Opacity}"/>
-                    <Setter Property="IsVisible" Value="{Binding IsEffectiveVisible}"/>
-                </Style>
-            </ItemsControl.Styles>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Grid Background="Black" Margin="0">
-                        <controls:NativeEmbeddingControl 
-                            x:Name="CollageEmbedder"
-                            HWnd="{Binding WindowHandle, Mode=OneWayToSource}"
-                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-                        <Popup IsOpen="{Binding ShowMetadataOverlay}" Placement="TopEdgeAlignedRight" PlacementTarget="{Binding #CollageEmbedder}" IsLightDismissEnabled="False" Topmost="True" VerticalOffset="100">
-                            <Border Background="#A0000000" Margin="10" Padding="10" CornerRadius="5">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding FileName}" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding FrameRate, StringFormat='Frame Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                    <TextBlock Text="{Binding BitRate, StringFormat='Bit Rate: {0}'}" Foreground="LightGray" FontSize="12"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
-                    </Grid>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+
 
         <!-- Custom Title Bar -->
         <Grid Grid.Row="0" Height="32" Background="#1a1a1a" IsVisible="{Binding IsTitleBarVisible}" ColumnDefinitions="*,Auto" Name="TitleBar" ZIndex="1000">
@@ -246,8 +210,7 @@
                 <Border Background="#242426" BorderBrush="#38383a" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,2,8,2">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                         <TextBlock Text="⚡ RANDOMIZE &amp; TIMING" Foreground="#8e8e93" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                        <TextBlock Text="Randomize:" VerticalAlignment="Center" IsEnabled="{Binding IsRandomizeEnabled}" Foreground="#e5e5ea"/>
-                        <ComboBox ItemsSource="{Binding RandomizeOptions}" SelectedItem="{Binding SelectedRandomize}" Width="110" IsEnabled="{Binding IsRandomizeEnabled}"/>
+                        <CheckBox Content="Random Swap" IsChecked="{Binding IsRandomSwapEnabled}" VerticalAlignment="Center" IsEnabled="{Binding IsRandomizeEnabled}"/>
                         <TextBlock Text="Randomize Delay:" VerticalAlignment="Center" IsEnabled="{Binding IsDelayEnabled}" Foreground="#e5e5ea"/>
                         <ComboBox ItemsSource="{Binding DelayOptions}" SelectedItem="{Binding SelectedDelay}" Width="65" IsEnabled="{Binding IsDelayEnabled}"/>
                     </StackPanel>
@@ -268,9 +231,61 @@
                         <CheckBox Content="Random Start" IsChecked="{Binding IsRandomStartEnabled}" VerticalAlignment="Center"/>
                         <CheckBox Content="Slo-mo" IsChecked="{Binding IsSloMoEnabled}" VerticalAlignment="Center"/>
                         <CheckBox Content="Auto-Hide" IsChecked="{Binding IsAutoHideEnabled}" VerticalAlignment="Center"/>
+                        <Rectangle Width="1" Height="16" Fill="#444446" Margin="2,0"/>
+                        <CheckBox Content="Debug" IsChecked="{Binding IsDebugEnabled}" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#38bdf8"/>
                     </StackPanel>
                 </Border>
             </WrapPanel>
         </Border>
+
+        <!-- Middle Debug Information HUD (Popup with Topmost="True" to render over native video player HWNDs) -->
+        <Popup x:Name="DebugPopup"
+               IsOpen="{Binding IsDebugEnabled}"
+               PlacementTarget="{Binding #RootGrid}"
+               Placement="Center"
+               VerticalOffset="0"
+               HorizontalOffset="0"
+               Topmost="True"
+               IsLightDismissEnabled="False"
+               Focusable="False">
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="#F012141C"
+                    BorderBrush="#4438bdf8"
+                    BorderThickness="1.5"
+                    CornerRadius="10"
+                    Padding="16,10"
+                    BoxShadow="0 8 24 0 #80000000">
+                <StackPanel Orientation="Vertical" Spacing="6" HorizontalAlignment="Center">
+                    <!-- Header / Display Mode Line -->
+                    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                        <Border Background="#2038bdf8" BorderBrush="#38bdf8" BorderThickness="1" CornerRadius="4" Padding="6,2">
+                            <TextBlock Text="DEBUG INFO" Foreground="#38bdf8" FontSize="11" FontWeight="Bold" LetterSpacing="0.5"/>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Mode:" Foreground="#9ca3af" FontSize="12" FontWeight="Medium"/>
+                            <TextBlock Text="{Binding SelectedDisplayMode}" Foreground="#f8fafc" FontSize="14" FontWeight="ExtraBold"/>
+                        </StackPanel>
+                        <TextBlock Text="|" Foreground="#4b5563" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Slots:" Foreground="#9ca3af" FontSize="12"/>
+                            <TextBlock Text="{Binding DebugActiveSlotsCount}" Foreground="#34d399" FontSize="13" FontWeight="Bold"/>
+                        </StackPanel>
+                        <TextBlock Text="|" Foreground="#4b5563" VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <TextBlock Text="Recycled Pool:" Foreground="#9ca3af" FontSize="12"/>
+                            <TextBlock Text="{Binding DebugRecycledBatchCount}" Foreground="#fbbf24" FontSize="13" FontWeight="Bold"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Detailed Settings & Diagnostics Line -->
+                    <TextBlock Text="{Binding DebugModeDetails}"
+                               Foreground="#cbd5e1"
+                               FontSize="11"
+                               FontWeight="Normal"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Popup>
     </Grid>
 </Window>

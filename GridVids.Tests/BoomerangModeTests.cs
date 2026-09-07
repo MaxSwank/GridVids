@@ -101,7 +101,6 @@ namespace GridVids.Tests
             {
                 "Auto-Swap",
                 "Boomerang",
-                "Collage",
                 "Grid",
                 "Scrolling Wall",
                 "Stackable"
@@ -151,8 +150,7 @@ namespace GridVids.Tests
             vm.SelectedDelay = 5.0;
             Assert.Equal(21.5, vm.GetModeFlowDuration("Stackable"));
 
-            // Collage, Boomerang, Grid all use SelectedCycleDelay (15s)
-            Assert.Equal(15.0, vm.GetModeFlowDuration("Collage"));
+            // Boomerang and Grid both use SelectedCycleDelay (15s)
             Assert.Equal(15.0, vm.GetModeFlowDuration("Boomerang"));
             Assert.Equal(15.0, vm.GetModeFlowDuration("Grid"));
 
@@ -422,6 +420,44 @@ namespace GridVids.Tests
             Assert.Equal(new[] { "vid1.mp4", "vid2.mp4", "vid3.mp4", "vid4.mp4" }, spawnedRow2);
             Assert.Equal(new[] { "vid1.mp4", "vid2.mp4", "vid3.mp4", "vid4.mp4" }, spawnedRow3);
             Assert.All(spawnedRow1.Concat(spawnedRow2).Concat(spawnedRow3), v => Assert.Contains(v, currentVideoBatch));
+        }
+
+        [Fact]
+        public void Test_DisplayModes_DefaultDelays()
+        {
+            var vm = new MainViewModel();
+
+            // Default Boomerang should set SelectedDelay to 10.0
+            vm.SelectedDisplayMode = "Boomerang";
+            Assert.Equal(10.0, vm.SelectedDelay);
+
+            // Stackable should default SelectedDelay to 2.0
+            vm.SelectedDisplayMode = "Stackable";
+            Assert.Equal(2.0, vm.SelectedDelay);
+
+            // Back to Boomerang
+            vm.SelectedDisplayMode = "Boomerang";
+            Assert.Equal(10.0, vm.SelectedDelay);
+
+            // Grid should default to 2.0
+            vm.SelectedDisplayMode = "Grid";
+            Assert.Equal(2.0, vm.SelectedDelay);
+
+            // Boomerang again
+            vm.SelectedDisplayMode = "Boomerang";
+            Assert.Equal(10.0, vm.SelectedDelay);
+
+            // Scrolling Wall should default to 2.0
+            vm.SelectedDisplayMode = "Scrolling Wall";
+            Assert.Equal(2.0, vm.SelectedDelay);
+
+            // Boomerang again
+            vm.SelectedDisplayMode = "Boomerang";
+            Assert.Equal(10.0, vm.SelectedDelay);
+
+            // Auto-Swap should default to 2.0
+            vm.SelectedDisplayMode = "Auto-Swap";
+            Assert.Equal(2.0, vm.SelectedDelay);
         }
 
         private (int Phase, bool IsForward, double Speed) GetBoomerangState(double elapsed, double totalDelay)

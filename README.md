@@ -17,10 +17,9 @@
 - **🚀 Instant Load**: Start playback immediately upon launch, ensuring a seamless experience.
 - **🔳 Configurable Grids**: Seamlessly switch between different grid configurations, from a simple 2x2 to a dense 4x8 layout.
 - **🔄 Auto-Swap**: Automatically cycle between two grid configurations at a set interval, perfect for monitoring multiple sources or creating a dynamic video wall.
-- **🎨 Dynamic Collage**: An interactive, overlapping video display featuring:
-    - **Fade-ins/Fade-outs**: Smooth transitions for new video slots.
-    - **Occlusion Culling**: Intelligently kills hidden video processes to optimize system resources.
-    - **Quad-Balanced Spawning**: Ensures even distribution of videos across all quadrants.
+- **🌊 Scrolling Wall**: Smooth vertical scrolling video canvas with configurable direction and speed.
+- **🧱 Stackable**: Interactive multi-quadrant overlay mode that reveals videos step-by-step.
+- **🪃 Boomerang**: Forward-reverse-swap cycling playback mode.
 - **🎯 Intelligent Library**: Fast, cached video discovery in targeted folders with random selection logic.
 
 ---
@@ -41,7 +40,7 @@ GridVids is built on a robust, asynchronous architecture designed to handle doze
 
 - **`ScriptOrchestrator`**: Manages `mpv` binary paths, Lua script locations, and launches individual `mpv` instances with tailored arguments (wid embedding, hwdec, custom scripts).
 - **`PlaybackService`**: Coordinates the launch and cleanup of video slots, ensuring that the UI remains responsive even during heavy transitions.
-- **`MainViewModel`**: The core logic engine that manages grid states, collage timers, and user settings using the MVVM pattern.
+- **`MainViewModel`**: The core logic engine that manages grid states, display modes, and user settings using the MVVM pattern.
 - **`VideoLibraryService`**: Handles high-performance directory scanning and caching of media files.
 
 ---
