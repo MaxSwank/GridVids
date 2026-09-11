@@ -129,7 +129,7 @@
             </ItemsControl.Styles>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Grid Background="Black" Margin="0">
+                    <Grid Background="Transparent" Margin="0">
                         <controls:NativeEmbeddingControl 
                             x:Name="ScrollEmbedder"
                             HWnd="{Binding WindowHandle, Mode=OneWayToSource}"

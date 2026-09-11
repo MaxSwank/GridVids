@@ -22,6 +22,22 @@ namespace GridVids.Interop
         [DllImport("user32.dll")]
         public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string? lpszClass, string? lpszWindow);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        public const uint SWP_NOZORDER = 0x0004;
+        public const uint SWP_NOACTIVATE = 0x0010;
+        public const uint SWP_SHOWWINDOW = 0x0040;
+
         public const int SW_HIDE = 0;
         public const int SW_SHOW = 5;
 

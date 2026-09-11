@@ -43,6 +43,7 @@ public partial class MainWindow : Window
             _pollingTimer?.Stop();
             if (DataContext is MainViewModel vm)
             {
+                vm.SaveSettings();
                 vm.CleanupAllProcesses();
             }
             else

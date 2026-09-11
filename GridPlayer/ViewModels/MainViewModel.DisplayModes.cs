@@ -21,7 +21,7 @@ namespace GridVids.ViewModels
                 double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
                 // Prioritize on-screen docked slots (e.g. slots within [0, effectiveH))
                 list = ScrollSlots
-                    .Where(s => s.CollageY >= -1.0 && s.CollageY < (effectiveH - 1.0))
+                    .Where(s => s.CollageY >= -2.0 && s.CollageY < (effectiveH - 0.5))
                     .OrderBy(s => Math.Round(s.CollageY))
                     .ThenBy(s => s.CollageX)
                     .Select(s => s.CurrentVideoPath)
@@ -45,6 +45,11 @@ namespace GridVids.ViewModels
                         .Select(s => s.CurrentVideoPath)
                         .Where(p => !string.IsNullOrEmpty(p))
                         .ToList();
+                }
+
+                if (list.Count == 0 && _currentVideoBatch.Count > 0)
+                {
+                    list = _currentVideoBatch.ToList();
                 }
             }
             else if (IsStackableEnabled || StackSlots.Count > 0)

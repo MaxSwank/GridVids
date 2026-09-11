@@ -29,8 +29,10 @@ namespace GridVids.ViewModels
             if (IsStackableEnabled && !IsSwapEnabled)
             {
                 _stackQuadrantStep = 0;
+                _isStackRunning = false;
                 _stackTimer.Interval = TimeSpan.FromSeconds(Math.Max(0.1, SelectedDelay));
-                if (!_stackTimer.IsEnabled) _stackTimer.Start();
+                _stackTimer.Stop();
+                _stackTimer.Start();
             }
             else
             {
@@ -41,6 +43,7 @@ namespace GridVids.ViewModels
 
         private void ClearStackSlots()
         {
+            _isStackRunning = false;
             if (StackSlots.Count > 0)
             {
                 var slotsToStop = StackSlots.ToList();

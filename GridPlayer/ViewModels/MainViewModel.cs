@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using GridVids.Interop;
 
 namespace GridVids.ViewModels
 {
@@ -447,7 +448,7 @@ namespace GridVids.ViewModels
                 UpdateCycleModesTimerForCurrentMode();
             }
 
-            if (!IsStackableEnabled && !IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled)
+            if (!IsSwapEnabled && !IsBoomerangEnabled && !IsCycleModesEnabled)
             {
                 _ = PreloadNextSlotAsync();
             }
@@ -647,6 +648,7 @@ namespace GridVids.ViewModels
                         Columns = 2;
                     }
                     IsStackableEnabled = true;
+                    ClearStackSlots();
                     UpdateGrid();
                     UpdateStackTimer();
                 }
@@ -777,79 +779,188 @@ namespace GridVids.ViewModels
             // Case 3: Transitioning from Scrolling Wall to Grid / Auto-Swap / Stackable / Boomerang
             if (willUseVideoSlots)
             {
-                if (oldMode == "Scrolling Wall")
+                // Immediately halt scroll velocity and purge off-screen slots to eliminate GPU/CPU contention.
+                _scrollTimer?.Stop();
+                CleanUpOffScreenScrollSlots();
+
+                IsSwapEnabled = (value == "Auto-Swap");
+                IsBoomerangEnabled = (value == "Boomerang");
+                IsStackableEnabled = (value == "Stackable");
+
+                double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+                var dockedSlots = ScrollSlots
+                    .Where(s => s.CollageY >= -2.0 && s.CollageY < (effectiveH - 0.5))
+                    .OrderBy(s => Math.Round(s.CollageY))
+                    .ThenBy(s => s.CollageX)
+                    .ToList();
+
+                if (dockedSlots.Count == 0)
                 {
-                    // Immediately halt scroll velocity and purge off-screen slots to eliminate GPU/CPU contention.
-                    // Keep IsScrollEnabled = true so the docked scrolling wall remains visible on screen
-                    // while the incoming grid slots start up in the background (preventing any blank/black gap).
-                    _scrollTimer?.Stop();
-                    CleanUpOffScreenScrollSlots();
+                    dockedSlots = ScrollSlots
+                        .Where(s => (s.CollageY + s.CollageHeight) > 0 && s.CollageY < effectiveH)
+                        .OrderBy(s => s.CollageY)
+                        .ThenBy(s => s.CollageX)
+                        .ToList();
                 }
 
-                if (value == "Stackable")
+                // 1. Synchronously adopt the batch from docked ScrollSlots into _currentVideoBatch
+                if (dockedSlots.Count > 0)
                 {
-                    Rows = 2;
-                    if (Columns != 2 && Columns != 4)
-                    {
-                        Columns = 2;
-                    }
-                    IsStackableEnabled = true;
-                    UpdateGrid();
+                    existingBatch = dockedSlots
+                        .Select(s => s.CurrentVideoPath)
+                        .Where(p => !string.IsNullOrEmpty(p))
+                        .ToList();
                 }
-
+                if (existingBatch.Count == 0 && _currentVideoBatch.Count > 0)
+                {
+                    existingBatch = _currentVideoBatch.ToList();
+                }
                 if (existingBatch.Count > 0)
                 {
                     _currentVideoBatch = existingBatch.ToList();
                 }
 
-                if (!string.IsNullOrEmpty(VideoPath))
+                bool canReuseScrollProcesses = (value == "Grid") &&
+                                               dockedSlots.Count > 0 &&
+                                               dockedSlots.Any(s => s.CurrentProcess != null && !s.CurrentProcess.HasExited);
+
+                if (canReuseScrollProcesses)
                 {
+                    _isShowingGrid1 = true;
+                    UpdateGrid();
+
+                    // Pre-populate VideoSlot CurrentVideoPaths immediately to prevent any empty slot states
+                    int count = Math.Min(dockedSlots.Count, VideoSlots.Count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        VideoSlots[i].CurrentVideoPath = dockedSlots[i].CurrentVideoPath;
+                    }
+
+                    _suppressAutoRun = true;
                     _ = Task.Run(async () =>
                     {
-                        await ExecutePlayback(existingBatch);
-                        await Task.Delay(500);
-                        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                        try
                         {
-                            // Reveal the grid and hide previous scroll simultaneously for seamless handoff
-                            IsGridVisible = true;
-                            UpdateGrid();
-
-                            if (oldMode == "Scrolling Wall")
+                            // Wait for Avalonia to instantiate target Grid NativeEmbeddingControl HWNDs
+                            int retries = 0;
+                            while (VideoSlots.Any(s => s.WindowHandle == IntPtr.Zero) && retries < 40)
                             {
-                                StopScroll();
-                                IsScrollEnabled = false;
+                                await Task.Delay(25);
+                                retries++;
                             }
 
-                            if (value == "Auto-Swap")
+                            // Seamless HWND reparenting of running mpv processes from docked ScrollSlots into target VideoSlots
+                            for (int i = 0; i < count; i++)
                             {
-                                IsSwapEnabled = true;
-                                _swapTimer?.Start();
+                                var source = dockedSlots[i];
+                                var target = VideoSlots[i];
+
+                                if (source.WindowHandle != IntPtr.Zero && target.WindowHandle != IntPtr.Zero)
+                                {
+                                    IntPtr mpvHwnd = Win32Interop.FindWindowEx(source.WindowHandle, IntPtr.Zero, null, null);
+                                    if (mpvHwnd != IntPtr.Zero)
+                                    {
+                                        Win32Interop.SetParent(mpvHwnd, target.WindowHandle);
+                                        Win32Interop.SetWindowPos(mpvHwnd, IntPtr.Zero, 0, 0, 0, 0,
+                                            Win32Interop.SWP_NOZORDER | Win32Interop.SWP_NOACTIVATE | Win32Interop.SWP_SHOWWINDOW);
+                                    }
+                                }
+
+                                var proc = source.CurrentProcess;
+                                var video = source.CurrentVideoPath;
+                                var ipc = source.IpcPipeName;
+
+                                // Detach process from scroll slot so it won't be killed when clearing scroll slots
+                                source.CurrentProcess = null;
+                                target.UpdateProcess(proc, video, ipc);
                             }
-                            else if (value == "Stackable")
+
+                            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                             {
-                                UpdateStackTimer();
-                            }
-                            else if (value == "Boomerang")
-                            {
-                                IsBoomerangEnabled = true;
-                                StartBoomerang();
-                            }
-                            UpdateRandomizeTimer();
-                        });
+                                _isUpdatingDisplayMode = true;
+                                _suppressAutoRun = true;
+                                try
+                                {
+                                    IsGridVisible = true;
+                                    StopScroll();
+                                    IsScrollEnabled = false;
+                                    UpdateRandomizeTimer();
+                                }
+                                finally
+                                {
+                                    _suppressAutoRun = false;
+                                    _isUpdatingDisplayMode = false;
+                                }
+                            });
+                        }
+                        catch
+                        {
+                            _suppressAutoRun = false;
+                        }
                     });
                 }
                 else
                 {
-                    if (oldMode == "Scrolling Wall")
-                    {
-                        StopScroll();
-                        IsScrollEnabled = false;
-                    }
+                    // Synchronously update Grid / Stackable structures and flags
+                    IsScrollEnabled = false;
                     IsGridVisible = true;
-                    UpdateGrid();
+                    StopScroll();
+
+                    if (value == "Stackable")
+                    {
+                        Rows = 2;
+                        if (Columns != 2 && Columns != 4)
+                        {
+                            Columns = 2;
+                        }
+                        ClearStackSlots();
+                        UpdateGrid();
+                        UpdateStackTimer();
+                    }
+                    else if (value == "Grid")
+                    {
+                        _isShowingGrid1 = true;
+                        UpdateGrid();
+                    }
+                    else if (value == "Auto-Swap")
+                    {
+                        UpdateGrid();
+                        _swapTimer?.Start();
+                    }
+                    else if (value == "Boomerang")
+                    {
+                        UpdateGrid();
+                        StartBoomerang();
+                    }
+
+                    if (existingBatch.Count > 0)
+                    {
+                        int count = Math.Min(existingBatch.Count, VideoSlots.Count);
+                        for (int i = 0; i < count; i++)
+                        {
+                            VideoSlots[i].CurrentVideoPath = existingBatch[i];
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(VideoPath))
+                    {
+                        _suppressAutoRun = true;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await ExecutePlayback(existingBatch);
+                            }
+                            finally
+                            {
+                                _suppressAutoRun = false;
+                            }
+                        });
+                    }
                 }
 
                 UpdateRandomizeTimer();
+                return;
             }
         }
 
@@ -885,6 +996,13 @@ namespace GridVids.ViewModels
             CycleDelayOptions.Add(15);
             CycleDelayOptions.Add(20);
             CycleDelayOptions.Add(30);
+            if (SelectedCycleDelay > 0 && !CycleDelayOptions.Contains(SelectedCycleDelay))
+            {
+                CycleDelayOptions.Add(SelectedCycleDelay);
+                var sorted = CycleDelayOptions.OrderBy(x => x).ToList();
+                CycleDelayOptions.Clear();
+                foreach (var d in sorted) CycleDelayOptions.Add(d);
+            }
         }
 
         [ObservableProperty]

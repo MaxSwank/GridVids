@@ -70,30 +70,114 @@ namespace GridVids.Tests
         }
 
         [Fact]
-        public void Test_RandomizeTimer_IsStrictlyDisabled_DuringScrollingWall()
+        public void Test_RandomizeTimer_Runs_DuringScrollingWall_When_RandomSwapEnabled()
         {
             _output.WriteLine("=======================================================================");
-            _output.WriteLine("TEST: Randomize timer is strictly stopped in Scrolling Wall");
+            _output.WriteLine("TEST: Randomize timer runs during Scrolling Wall when Random Swap is enabled");
             _output.WriteLine("=======================================================================");
 
             var vm = CreateIsolatedViewModel();
 
-            // In Grid mode with SelectedRandomize = "Multiple", randomize timer runs
-            vm.SelectedDisplayMode = "Grid";
-            vm.SelectedRandomize = "Multiple";
-
-            _output.WriteLine($"In Grid with Multiple: IsRandomizeTimerRunning = {vm.IsRandomizeTimerRunning}");
-            Assert.True(vm.IsRandomizeTimerRunning);
-
-            // Switching to Scrolling Wall must disable the randomize timer
+            // In Scrolling Wall mode with Random Swap disabled, randomize timer does not run
             vm.SelectedDisplayMode = "Scrolling Wall";
-            _output.WriteLine($"In Scrolling Wall with Multiple: IsRandomizeTimerRunning = {vm.IsRandomizeTimerRunning}");
+            vm.IsRandomSwapEnabled = false;
             Assert.False(vm.IsRandomizeTimerRunning);
 
-            // Switching back to Grid should re-enable the randomize timer
-            vm.SelectedDisplayMode = "Grid";
-            _output.WriteLine($"Back in Grid with Multiple: IsRandomizeTimerRunning = {vm.IsRandomizeTimerRunning}");
+            // Enabling Random Swap starts the timer in Scrolling Wall mode
+            vm.IsRandomSwapEnabled = true;
             Assert.True(vm.IsRandomizeTimerRunning);
+
+            // Setting SelectedRandomize to "None" stops the timer
+            vm.SelectedRandomize = "None";
+            Assert.False(vm.IsRandomizeTimerRunning);
+
+            // Setting SelectedRandomize to "Multiple" restarts the timer
+            vm.SelectedRandomize = "Multiple";
+            Assert.True(vm.IsRandomizeTimerRunning);
+        }
+
+        [Fact]
+        public async Task Test_ScrollingWall_RandomSwap_ReplacesSingleSlotVideo()
+        {
+            _output.WriteLine("=======================================================================");
+            _output.WriteLine("TEST: Scrolling Wall replaces exactly 1 random slot with another video");
+            _output.WriteLine("=======================================================================");
+
+            // Create temp video folder with 10 dummy video files
+            string tempDir = Path.Combine(Path.GetTempPath(), $"gridvids_test_vids_{Guid.NewGuid()}");
+            Directory.CreateDirectory(tempDir);
+            var videoFiles = new List<string>();
+            try
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    string filePath = Path.Combine(tempDir, $"video_{i:D2}.mp4");
+                    File.WriteAllText(filePath, "dummy video content");
+                    videoFiles.Add(filePath);
+                }
+
+                var vm = CreateIsolatedViewModel();
+                vm.VideoPath = tempDir;
+                vm.IsVideoPlaying = true;
+                vm.SelectedDisplayMode = "Scrolling Wall";
+                vm.IsRandomSwapEnabled = true;
+                vm.SelectedDelay = 2.0;
+
+                // Populate 4 visible slots in ScrollSlots
+                vm.ScrollSlots.Clear();
+                var initialSlotVideos = new List<string> { videoFiles[0], videoFiles[1], videoFiles[2], videoFiles[3] };
+                for (int i = 0; i < initialSlotVideos.Count; i++)
+                {
+                    vm.ScrollSlots.Add(new VideoSlotViewModel
+                    {
+                        Index = i,
+                        CurrentVideoPath = initialSlotVideos[i],
+                        CollageX = (i % 2) * 400.0,
+                        CollageY = (i / 2) * 300.0,
+                        CollageWidth = 400.0,
+                        CollageHeight = 300.0,
+                        IsCollageVisible = true
+                    });
+                }
+
+                _output.WriteLine($"Initial ScrollSlot videos: {string.Join(", ", vm.ScrollSlots.Select(s => Path.GetFileName(s.CurrentVideoPath)))}");
+
+                // Execute 1 random swap tick
+                await vm.TriggerRandomSwapForTestingAsync();
+
+                var afterSlotVideos = vm.ScrollSlots.Select(s => s.CurrentVideoPath).ToList();
+                _output.WriteLine($"After Swap ScrollSlot videos: {string.Join(", ", afterSlotVideos.Select(Path.GetFileName))}");
+
+                // Exactly 1 slot should have changed
+                int changedCount = 0;
+                int changedIndex = -1;
+                for (int i = 0; i < initialSlotVideos.Count; i++)
+                {
+                    if (initialSlotVideos[i] != afterSlotVideos[i])
+                    {
+                        changedCount++;
+                        changedIndex = i;
+                    }
+                }
+
+                Assert.Equal(1, changedCount);
+                Assert.True(changedIndex >= 0);
+
+                // The new video should be from the available video library (videoFiles[4..9])
+                string newVideo = afterSlotVideos[changedIndex];
+                Assert.Contains(newVideo, videoFiles);
+                Assert.DoesNotContain(newVideo, initialSlotVideos);
+
+                // All 4 visible slots should now have distinct videos
+                Assert.Equal(4, afterSlotVideos.Distinct().Count());
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
         }
 
         [Fact]
