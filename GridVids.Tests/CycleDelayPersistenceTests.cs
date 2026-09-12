@@ -91,5 +91,88 @@ namespace GridVids.Tests
                 }
             }
         }
+
+        [Theory]
+        [InlineData("Boomerang", true, 15.0)]
+        [InlineData("Scrolling Wall", false, 30.0)]
+        [InlineData("Stackable", true, 20.0)]
+        [InlineData("Auto-Swap", false, 10.0)]
+        [InlineData("Grid", true, 10.0)]
+        public void Test_DisplayModeAndCycleSettings_SavedAndLoadedFromPreviousSession(string displayMode, bool cycleEnabled, double cycleDelay)
+        {
+            string tempSettingsFile = Path.Combine(Path.GetTempPath(), $"gridvids_test_settings_{Guid.NewGuid():N}.json");
+
+            try
+            {
+                // Session 1: User configures display mode and cycle settings
+                var settingsService1 = new SettingsService(tempSettingsFile);
+                var vm1 = new MainViewModel(settingsService1);
+
+                vm1.SelectedDisplayMode = displayMode;
+                vm1.IsCycleModesEnabled = cycleEnabled;
+                vm1.SelectedCycleDelay = cycleDelay;
+
+                // Emulate Window Closing sequence: vm.SaveSettings() followed by vm.CleanupAllProcesses()
+                vm1.SaveSettings();
+                vm1.CleanupAllProcesses();
+
+                // Check saved file directly on disk
+                var savedSettings = settingsService1.LoadSettings();
+                Assert.Equal(displayMode, savedSettings.SelectedDisplayMode);
+                Assert.Equal(cycleEnabled, savedSettings.IsCycleModesEnabled);
+                Assert.Equal(cycleDelay, savedSettings.SelectedCycleDelay);
+
+                // Session 2: User opens app next time
+                var settingsService2 = new SettingsService(tempSettingsFile);
+                var vm2 = new MainViewModel(settingsService2);
+
+                _output.WriteLine($"Session 2: Loaded DisplayMode={vm2.SelectedDisplayMode}, CycleEnabled={vm2.IsCycleModesEnabled}, CycleDelay={vm2.SelectedCycleDelay}");
+                Assert.Equal(displayMode, vm2.SelectedDisplayMode);
+                Assert.Equal(cycleEnabled, vm2.IsCycleModesEnabled);
+                Assert.Equal(cycleDelay, vm2.SelectedCycleDelay);
+
+                // Verify corresponding flags in ViewModel are correctly matched
+                switch (displayMode)
+                {
+                    case "Boomerang":
+                        Assert.True(vm2.IsBoomerangEnabled);
+                        Assert.False(vm2.IsScrollEnabled);
+                        Assert.False(vm2.IsStackableEnabled);
+                        Assert.False(vm2.IsSwapEnabled);
+                        break;
+                    case "Scrolling Wall":
+                        Assert.True(vm2.IsScrollEnabled);
+                        Assert.False(vm2.IsBoomerangEnabled);
+                        Assert.False(vm2.IsStackableEnabled);
+                        Assert.False(vm2.IsSwapEnabled);
+                        break;
+                    case "Stackable":
+                        Assert.True(vm2.IsStackableEnabled);
+                        Assert.False(vm2.IsScrollEnabled);
+                        Assert.False(vm2.IsBoomerangEnabled);
+                        Assert.False(vm2.IsSwapEnabled);
+                        break;
+                    case "Auto-Swap":
+                        Assert.True(vm2.IsSwapEnabled);
+                        Assert.False(vm2.IsScrollEnabled);
+                        Assert.False(vm2.IsStackableEnabled);
+                        Assert.False(vm2.IsBoomerangEnabled);
+                        break;
+                    case "Grid":
+                        Assert.False(vm2.IsSwapEnabled);
+                        Assert.False(vm2.IsScrollEnabled);
+                        Assert.False(vm2.IsStackableEnabled);
+                        Assert.False(vm2.IsBoomerangEnabled);
+                        break;
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempSettingsFile))
+                {
+                    File.Delete(tempSettingsFile);
+                }
+            }
+        }
     }
 }

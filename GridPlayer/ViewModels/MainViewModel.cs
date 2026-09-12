@@ -126,19 +126,8 @@ namespace GridVids.ViewModels
 
             if (!string.IsNullOrEmpty(_videoPath))
             {
-                // Ensure cache is populated before first playback
-                _ = _videoLibraryService.RefreshCacheAsync(_videoPath).ContinueWith(t =>
-                {
-                    if (!t.IsFaulted)
-                    {
-                        if (IsCycleModesEnabled)
-                        {
-                            StartCycleModes();
-                        }
-                        else if (IsScrollEnabled) StartScroll();
-                        else _ = ExecutePlayback();
-                    }
-                }, TaskScheduler.FromCurrentSynchronizationContext());
+                // Pre-warm cache for the loaded video path; Playback is triggered on Window Opened
+                _ = _videoLibraryService.RefreshCacheAsync(_videoPath);
             }
 
             UpdateGrid();
@@ -492,6 +481,7 @@ namespace GridVids.ViewModels
                 await ExecutePlayback(existingBatch);
                 if (IsSwapEnabled) _swapTimer?.Start();
                 if (IsStackableEnabled) UpdateStackTimer();
+                if (IsBoomerangEnabled) StartBoomerang();
             }
 
             if (IsCycleModesEnabled)
@@ -524,7 +514,6 @@ namespace GridVids.ViewModels
 
         public void CleanupAllProcesses()
         {
-            IsSwapEnabled = false;
             _swapTimer?.Stop();
             _randomizeTimer?.Stop();
             _stackTimer?.Stop();
