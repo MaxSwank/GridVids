@@ -234,7 +234,19 @@ namespace GridVids.Tests
                 CreateNoWindow = true
             };
 
-            var proc = System.Diagnostics.Process.Start(psi);
+            System.Diagnostics.Process? proc = null;
+            for (int r = 0; r < 5; r++)
+            {
+                try
+                {
+                    proc = System.Diagnostics.Process.Start(psi);
+                    if (proc != null) break;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    await Task.Delay(250);
+                }
+            }
             Assert.NotNull(proc);
 
             try
@@ -248,18 +260,18 @@ namespace GridVids.Tests
                     IpcPipeName = pipeName
                 };
 
-                // 1. Send: set play-direction backward via slot.SetProperty
-                slot.SetProperty("play-direction", "backward");
-                await Task.Delay(200);
+                // 1. Send: set play-direction backward via slot.SetPropertyAsync
+                await slot.SetPropertyAsync("play-direction", "backward");
+                await Task.Delay(100);
 
                 // 2. Query: get play-direction
                 string resp1 = await QueryMpvPropertyAsync(pipeName, "play-direction");
                 _output.WriteLine($"After set backward: {resp1}");
                 Assert.Contains("\"data\":\"backward\"", resp1);
 
-                // 3. Send: set play-direction forward via slot.SetProperty
-                slot.SetProperty("play-direction", "forward");
-                await Task.Delay(200);
+                // 3. Send: set play-direction forward via slot.SetPropertyAsync
+                await slot.SetPropertyAsync("play-direction", "forward");
+                await Task.Delay(100);
 
                 // 4. Query: get play-direction
                 string resp2 = await QueryMpvPropertyAsync(pipeName, "play-direction");
@@ -278,13 +290,30 @@ namespace GridVids.Tests
 
         private async Task<string> QueryMpvPropertyAsync(string pipeName, string propertyName)
         {
-            using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut);
-            await pipeClient.ConnectAsync(2000);
-            var writer = new System.IO.StreamWriter(pipeClient) { AutoFlush = true };
-            var reader = new System.IO.StreamReader(pipeClient);
+            // Retry connecting with brief delays until MPV creates the named pipe
+            for (int retry = 0; retry < 10; retry++)
+            {
+                try
+                {
+                    using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut);
+                    await pipeClient.ConnectAsync(1000);
+                    var writer = new System.IO.StreamWriter(pipeClient) { AutoFlush = true };
+                    var reader = new System.IO.StreamReader(pipeClient);
 
-            await writer.WriteLineAsync($"{{\"command\":[\"get_property\",\"{propertyName}\"]}}");
-            return await reader.ReadLineAsync() ?? string.Empty;
+                    await writer.WriteLineAsync($"{{\"command\":[\"get_property\",\"{propertyName}\"]}}");
+                    return await reader.ReadLineAsync() ?? string.Empty;
+                }
+                catch (System.IO.FileNotFoundException)
+                {
+                    await Task.Delay(300);
+                }
+                catch (TimeoutException)
+                {
+                    await Task.Delay(300);
+                }
+            }
+
+            return string.Empty;
         }
 
         [Fact]

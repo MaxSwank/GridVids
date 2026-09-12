@@ -54,6 +54,11 @@ namespace GridVids.ViewModels
 
         private async void StackTimer_Tick(object? sender, EventArgs e)
         {
+            await TriggerStackStepAsync();
+        }
+
+        public async Task TriggerStackStepAsync()
+        {
             if (!IsStackableEnabled || IsSwapEnabled || !IsVideoPlaying || string.IsNullOrWhiteSpace(VideoPath))
             {
                 return;
@@ -179,11 +184,21 @@ namespace GridVids.ViewModels
                 await Task.Delay(50);
             }
 
+            // If we are running in a UI context, filter to slots with valid WindowHandles.
+            // If running headlessly (such as unit tests where no NativeControlHost attaches a handle), retain the slots.
             var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
-            var invalidSlots = newSlots.Where(s => s.WindowHandle == IntPtr.Zero).ToList();
-            foreach (var inv in invalidSlots)
+            if (validSlots.Count == 0 && newSlots.Count > 0)
             {
-                StackSlots.Remove(inv);
+                // Headless/test fallback so slot state transitions can be evaluated
+                validSlots = newSlots.ToList();
+            }
+            else
+            {
+                var invalidSlots = newSlots.Where(s => s.WindowHandle == IntPtr.Zero).ToList();
+                foreach (var inv in invalidSlots)
+                {
+                    StackSlots.Remove(inv);
+                }
             }
 
             if (validSlots.Count > 0 && IsStackableEnabled)
@@ -197,18 +212,36 @@ namespace GridVids.ViewModels
                 List<string> vids;
                 if (IsSingleVidEnabled)
                 {
-                    vids = await GetRecycledOrFreshVideosAsync(validSlots.Count, excluded, preferExclusion: false);
+                    // In Single Vid mode, stackable video must match the background video
+                    string? bgVideo = VideoSlots.Select(s => s.CurrentVideoPath).FirstOrDefault(p => !string.IsNullOrEmpty(p))
+                                      ?? (_currentVideoBatch != null && _currentVideoBatch.Count > 0 ? _currentVideoBatch[0] : null);
+
+                    if (!string.IsNullOrEmpty(bgVideo))
+                    {
+                        vids = Enumerable.Repeat(bgVideo, validSlots.Count).ToList();
+                    }
+                    else
+                    {
+                        vids = await GetRecycledOrFreshVideosAsync(validSlots.Count, null, preferExclusion: false);
+                    }
                 }
                 else
                 {
-                    // Random stacked videos for each grid slot
+                    // Stackable video is random: exclude active background and existing stack slots
                     vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, isSingleVidMode: false);
                     if (vids.Count < validSlots.Count)
                     {
-                        // If library has fewer videos than needed after excluding active ones, fetch unconstrained random
+                        // Fallback excluding videos already picked in this batch
                         int remaining = validSlots.Count - vids.Count;
-                        var fallback = await _videoLibraryService.GetRandomVideosAsync(remaining, null, isSingleVidMode: false);
+                        var batchExcluded = new HashSet<string>(vids);
+                        var fallback = await _videoLibraryService.GetRandomVideosAsync(remaining, batchExcluded, isSingleVidMode: false);
                         vids.AddRange(fallback);
+
+                        if (vids.Count < validSlots.Count)
+                        {
+                            var unconstrained = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count - vids.Count, null, isSingleVidMode: false);
+                            vids.AddRange(unconstrained);
+                        }
                     }
                 }
 

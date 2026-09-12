@@ -117,9 +117,14 @@ namespace GridVids.Tests
                 }
 
                 var vm = CreateIsolatedViewModel();
+                // Avoid async StartScroll from background cache refresh overwriting test slots
+                vm.IsScrollEnabled = true;
                 vm.VideoPath = tempDir;
+                // Wait for any background cache refresh to complete
+                await Task.Delay(100);
+                vm.StopScroll();
+
                 vm.IsVideoPlaying = true;
-                vm.SelectedDisplayMode = "Scrolling Wall";
                 vm.IsRandomSwapEnabled = true;
                 vm.SelectedDelay = 2.0;
 

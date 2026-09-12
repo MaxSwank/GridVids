@@ -10,7 +10,7 @@ namespace GridVids.ViewModels
     public partial class MainViewModel
     {
         private Avalonia.Threading.DispatcherTimer? _scrollTimer;
-        private DateTime _lastScrollTick;
+        private readonly System.Diagnostics.Stopwatch _scrollStopwatch = new();
         private bool _isSpawningScrollRow = false;
         private bool _isAligningScrollForCycleSwitch = false;
         private double _scrolledDistanceInCycle = 0.0;
@@ -47,12 +47,13 @@ namespace GridVids.ViewModels
             {
                 _scrollTimer = new Avalonia.Threading.DispatcherTimer
                 {
-                    Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS ultra-smooth animation
+                    Interval = TimeSpan.FromMilliseconds(8) // ~120 Hz tick cadence for silky smooth display refresh
                 };
                 _scrollTimer.Tick += ScrollTimer_Tick;
             }
 
             _scrollTimer.Stop();
+            _scrollStopwatch.Reset();
             ClearScrollSlots();
             IsVideoPlaying = true;
             IsControlBarVisible = false;
@@ -128,7 +129,7 @@ namespace GridVids.ViewModels
                 _ = SpawnScrollRowAsync(curRows * cellH, cellW, cellH, curCols, rowVideos);
             }
 
-            _lastScrollTick = DateTime.Now;
+            _scrollStopwatch.Restart();
             _scrollTimer.Start();
         }
 
@@ -142,9 +143,10 @@ namespace GridVids.ViewModels
             _ = StartScrollAsync(initialVideos);
         }
 
-        private void StopScroll()
+        public void StopScroll()
         {
             _scrollTimer?.Stop();
+            _scrollStopwatch.Reset();
             ClearScrollSlots();
         }
 
@@ -270,10 +272,9 @@ namespace GridVids.ViewModels
         {
             if (!IsScrollEnabled || !IsVideoPlaying) return;
 
-            var now = DateTime.Now;
-            double dt = (now - _lastScrollTick).TotalSeconds;
-            _lastScrollTick = now;
-            if (dt > 0.05) dt = 0.05; // Cap delta time to prevent frame jumps
+            double dt = _scrollStopwatch.Elapsed.TotalSeconds;
+            _scrollStopwatch.Restart();
+            if (dt > 0.033) dt = 0.033; // Cap delta time to prevent frame jumps while maintaining high precision
 
             double delta = ScrollSpeed * dt;
 

@@ -165,7 +165,7 @@ namespace GridVids.Services
                 "--video-reversal-buffer=500MiB",
                 "--audio-reversal-buffer=200MiB",
                 "--video-sync=display-resample",
-                "--vd-lavc-threads=0",
+                "--vd-lavc-threads=2",
                 "--vd-lavc-fast=yes",
                 "--hr-seek=yes",
                 "--hr-seek-framedrop=no"
@@ -213,7 +213,19 @@ namespace GridVids.Services
 
             try
             {
-                return Process.Start(psi);
+                var proc = Process.Start(psi);
+                if (proc != null)
+                {
+                    try
+                    {
+                        proc.PriorityClass = ProcessPriorityClass.BelowNormal;
+                    }
+                    catch
+                    {
+                        // Some platforms/permissions might restrict setting PriorityClass
+                    }
+                }
+                return proc;
             }
             catch (Exception ex)
             {

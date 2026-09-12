@@ -77,9 +77,9 @@ namespace GridVids.ViewModels
         [NotifyPropertyChangedFor(nameof(EffectiveHeight))]
         private bool _isCollageVisible = false; // Starts hidden until delayed show
 
-        // Use integers for HWND bounds to prevent sub-pixel jitter and aspect ratio drift (stretching)
-        public double EffectiveX => IsCollageVisible ? Math.Round(CollageX) : -10000;
-        public double EffectiveY => IsCollageVisible ? Math.Round(CollageY) : -10000;
+        // Allow fractional coordinates for smooth subpixel canvas scrolling
+        public double EffectiveX => IsCollageVisible ? CollageX : -10000;
+        public double EffectiveY => IsCollageVisible ? CollageY : -10000;
 
         public double EffectiveWidth => Math.Round(CollageWidth);
         // Force Height to be derived from Width to lock Aspect Ratio (16:9)
@@ -130,38 +130,45 @@ namespace GridVids.ViewModels
             return old;
         }
 
-        public void SendIpcCommand(string commandJson)
+        public async Task SendIpcCommandAsync(string commandJson)
         {
             if (string.IsNullOrEmpty(IpcPipeName)) return;
 
-            Task.Run(() =>
+            try
             {
-                try
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
                 {
-                    if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-                    {
-                        using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", IpcPipeName, System.IO.Pipes.PipeDirection.Out);
-                        pipeClient.Connect(150);
-                        using var writer = new System.IO.StreamWriter(pipeClient);
-                        writer.WriteLine(commandJson);
-                        writer.Flush();
-                    }
+                    using var pipeClient = new System.IO.Pipes.NamedPipeClientStream(".", IpcPipeName, System.IO.Pipes.PipeDirection.Out);
+                    await pipeClient.ConnectAsync(1000);
+                    using var writer = new System.IO.StreamWriter(pipeClient);
+                    await writer.WriteLineAsync(commandJson);
+                    await writer.FlushAsync();
                 }
-                catch
-                {
-                    // Ignore transient errors when process is closing
-                }
-            });
+            }
+            catch
+            {
+                // Ignore transient errors when process is closing
+            }
         }
 
-        public void SetProperty(string propertyName, object value)
+        public void SendIpcCommand(string commandJson)
+        {
+            _ = SendIpcCommandAsync(commandJson);
+        }
+
+        public Task SetPropertyAsync(string propertyName, object value)
         {
             var cmd = new
             {
                 command = new object[] { "set_property", propertyName, value }
             };
             string json = System.Text.Json.JsonSerializer.Serialize(cmd);
-            SendIpcCommand(json);
+            return SendIpcCommandAsync(json);
+        }
+
+        public void SetProperty(string propertyName, object value)
+        {
+            _ = SetPropertyAsync(propertyName, value);
         }
 
         public void UpdateOverlay(bool show)

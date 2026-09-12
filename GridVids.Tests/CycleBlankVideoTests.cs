@@ -350,9 +350,9 @@ namespace GridVids.Tests
                 var settingsService = new SettingsService(tempSettings);
                 var vm = new MainViewModel(settingsService)
                 {
-                    VideoPath = tempFolder,
                     Rows = 2,
                     Columns = 2,
+                    VideoPath = tempFolder,
                     IsCycleModesEnabled = true,
                     IsVideoPlaying = true
                 };
@@ -440,6 +440,114 @@ namespace GridVids.Tests
             }
             finally
             {
+                if (File.Exists(tempSettings))
+                {
+                    try { File.Delete(tempSettings); } catch { }
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Test_Stackable_SingleVid_MatchesBackground()
+        {
+            var (tempFolder, videoFiles) = CreateSampleVideoFolder(10);
+            string tempSettings = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                var settingsService = new SettingsService(tempSettings);
+                var vm = new MainViewModel(settingsService)
+                {
+                    VideoPath = tempFolder,
+                    Rows = 2,
+                    Columns = 2,
+                    IsSingleVidEnabled = true,
+                    IsVideoPlaying = true
+                };
+
+                // Seed initial base VideoSlots with a single video
+                string chosenSingleVid = videoFiles[0];
+                for (int i = 0; i < vm.VideoSlots.Count; i++)
+                {
+                    vm.VideoSlots[i].CurrentVideoPath = chosenSingleVid;
+                    vm.VideoSlots[i].WindowHandle = new IntPtr(1000 + i);
+                }
+
+                // Now trigger stackable
+                vm.SelectedDisplayMode = "Stackable";
+                Assert.True(vm.IsStackableEnabled);
+
+                // Let quadrant slots populate
+                await vm.TriggerStackStepAsync();
+
+                // Background video is the single vid
+                string bgVid = vm.VideoSlots[0].CurrentVideoPath;
+                Assert.False(string.IsNullOrEmpty(bgVid));
+
+                // All stack slots must match background video when Single Vid is enabled
+                Assert.NotEmpty(vm.StackSlots);
+                foreach (var stackSlot in vm.StackSlots)
+                {
+                    Assert.Equal(bgVid, stackSlot.CurrentVideoPath);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempFolder))
+                {
+                    try { Directory.Delete(tempFolder, true); } catch { }
+                }
+                if (File.Exists(tempSettings))
+                {
+                    try { File.Delete(tempSettings); } catch { }
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Test_Stackable_RandomMode_DiffersFromBackground()
+        {
+            var (tempFolder, videoFiles) = CreateSampleVideoFolder(20);
+            string tempSettings = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                var settingsService = new SettingsService(tempSettings);
+                var vm = new MainViewModel(settingsService)
+                {
+                    VideoPath = tempFolder,
+                    Rows = 2,
+                    Columns = 2,
+                    IsSingleVidEnabled = false,
+                    IsVideoPlaying = true
+                };
+
+                // Seed initial base VideoSlots
+                for (int i = 0; i < vm.VideoSlots.Count; i++)
+                {
+                    vm.VideoSlots[i].CurrentVideoPath = videoFiles[i];
+                    vm.VideoSlots[i].WindowHandle = new IntPtr(1000 + i);
+                }
+
+                vm.SelectedDisplayMode = "Stackable";
+                Assert.True(vm.IsStackableEnabled);
+
+                await vm.TriggerStackStepAsync();
+
+                var bgVideos = vm.VideoSlots.Select(s => s.CurrentVideoPath).ToHashSet();
+                Assert.NotEmpty(vm.StackSlots);
+
+                // When random and sufficient library videos exist, stack slot videos should be distinct from background
+                foreach (var stackSlot in vm.StackSlots)
+                {
+                    Assert.False(string.IsNullOrEmpty(stackSlot.CurrentVideoPath));
+                    Assert.DoesNotContain(stackSlot.CurrentVideoPath, bgVideos);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempFolder))
+                {
+                    try { Directory.Delete(tempFolder, true); } catch { }
+                }
                 if (File.Exists(tempSettings))
                 {
                     try { File.Delete(tempSettings); } catch { }

@@ -16,7 +16,7 @@ namespace GridVids.ViewModels
         {
             var list = new List<string>();
 
-            if (IsScrollEnabled || ScrollSlots.Count > 0)
+            if (ScrollSlots.Count > 0 || IsScrollEnabled)
             {
                 double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
                 // Prioritize on-screen docked slots (e.g. slots within [0, effectiveH))
