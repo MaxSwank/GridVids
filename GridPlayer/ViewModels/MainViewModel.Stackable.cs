@@ -109,6 +109,14 @@ namespace GridVids.ViewModels
                     }
 
                     await LoadAndDisplayQuadrantSlotsAsync(quadIndex, qOffsetX, qOffsetY, quadW, quadH, curRows, curCols, cellW, cellH);
+
+                    // In Testing mode, as soon as the 4th quadrant (quadIndex 3) has stacked, immediately start over in Grid mode without waiting for another timer tick
+                    if (SelectedDisplayMode == "Testing" && quadIndex == 3)
+                    {
+                        _stackQuadrantStep = 0;
+                        await OnTestingStackingCompleted();
+                        return;
+                    }
                 }
                 else
                 {
@@ -122,6 +130,12 @@ namespace GridVids.ViewModels
                     {
                         _pendingCycleModeSwitch = false;
                         SwitchToNextCycleMode();
+                        return;
+                    }
+
+                    if (SelectedDisplayMode == "Testing")
+                    {
+                        await OnTestingStackingCompleted();
                         return;
                     }
 
@@ -177,19 +191,22 @@ namespace GridVids.ViewModels
                 StackSlots.Add(s);
             }
 
-            // Wait for window handles to be created
-            var sw = Stopwatch.StartNew();
-            while (sw.ElapsedMilliseconds < 2500 && newSlots.Any(s => s.WindowHandle == IntPtr.Zero))
+            // Wait for window handles to be created if running in UI context with real host
+            bool isHeadless = Avalonia.Application.Current == null || !VideoSlots.Any(s => s.WindowHandle != IntPtr.Zero);
+            if (!isHeadless)
             {
-                await Task.Delay(50);
+                var sw = Stopwatch.StartNew();
+                while (sw.ElapsedMilliseconds < 2500 && newSlots.Any(s => s.WindowHandle == IntPtr.Zero))
+                {
+                    await Task.Delay(50);
+                }
             }
 
             // If we are running in a UI context, filter to slots with valid WindowHandles.
             // If running headlessly (such as unit tests where no NativeControlHost attaches a handle), retain the slots.
-            var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
-            if (validSlots.Count == 0 && newSlots.Count > 0)
+            List<VideoSlotViewModel> validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
+            if (validSlots.Count == 0 && (isHeadless || newSlots.Count > 0))
             {
-                // Headless/test fallback so slot state transitions can be evaluated
                 validSlots = newSlots.ToList();
             }
             else
@@ -227,20 +244,45 @@ namespace GridVids.ViewModels
                 }
                 else
                 {
-                    // Stackable video is random: exclude active background and existing stack slots
-                    vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, isSingleVidMode: false);
-                    if (vids.Count < validSlots.Count)
-                    {
-                        // Fallback excluding videos already picked in this batch
-                        int remaining = validSlots.Count - vids.Count;
-                        var batchExcluded = new HashSet<string>(vids);
-                        var fallback = await _videoLibraryService.GetRandomVideosAsync(remaining, batchExcluded, isSingleVidMode: false);
-                        vids.AddRange(fallback);
+                    // If we have an existing pool of videos from scrolling (e.g. in Testing mode or cycle transition),
+                    // stack directly on the previous videos from scrolling instead of fetching a new batch from library.
+                    var scrollPool = (_scrollingVideoPool != null && _scrollingVideoPool.Count > 0)
+                        ? _scrollingVideoPool
+                        : null;
 
+                    if (scrollPool != null && scrollPool.Count > 0)
+                    {
+                        var pool = scrollPool.Where(p => !string.IsNullOrEmpty(p)).Distinct().ToList();
+                        var available = pool.Where(p => !excluded.Contains(p)).ToList();
+                        if (available.Count == 0)
+                        {
+                            available = pool.ToList();
+                        }
+
+                        var rnd = new Random();
+                        vids = available.OrderBy(_ => rnd.Next()).Take(validSlots.Count).ToList();
+                        while (vids.Count < validSlots.Count && pool.Count > 0)
+                        {
+                            vids.Add(pool[rnd.Next(pool.Count)]);
+                        }
+                    }
+                    else
+                    {
+                        // Stackable video is random: exclude active background and existing stack slots
+                        vids = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count, excluded, isSingleVidMode: false);
                         if (vids.Count < validSlots.Count)
                         {
-                            var unconstrained = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count - vids.Count, null, isSingleVidMode: false);
-                            vids.AddRange(unconstrained);
+                            // Fallback excluding videos already picked in this batch
+                            int remaining = validSlots.Count - vids.Count;
+                            var batchExcluded = new HashSet<string>(vids);
+                            var fallback = await _videoLibraryService.GetRandomVideosAsync(remaining, batchExcluded, isSingleVidMode: false);
+                            vids.AddRange(fallback);
+
+                            if (vids.Count < validSlots.Count)
+                            {
+                                var unconstrained = await _videoLibraryService.GetRandomVideosAsync(validSlots.Count - vids.Count, null, isSingleVidMode: false);
+                                vids.AddRange(unconstrained);
+                            }
                         }
                     }
                 }
@@ -253,8 +295,11 @@ namespace GridVids.ViewModels
                     }
                     await _playbackService.PlayAsync(validSlots, vids);
 
-                    // Buffer Delay: Wait for MPV to initialize, decode, and render frames before displaying
-                    await Task.Delay(1000);
+                    // Buffer Delay: Wait for MPV to initialize, decode, and render frames before displaying (skip in headless mode)
+                    if (!isHeadless)
+                    {
+                        await Task.Delay(1000);
+                    }
 
                     if (!IsStackableEnabled) return;
 

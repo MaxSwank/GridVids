@@ -554,6 +554,76 @@ namespace GridVids.Tests
                 }
             }
         }
+
+        [Fact]
+        public async Task Test_ScrollingWall_To_Stackable_ReusesScrollingVideos()
+        {
+            var (tempFolder, videoFiles) = CreateSampleVideoFolder(15);
+            string tempSettings = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".json");
+            try
+            {
+                var settingsService = new SettingsService(tempSettings);
+                var vm = new MainViewModel(settingsService)
+                {
+                    VideoPath = tempFolder,
+                    Rows = 2,
+                    Columns = 2,
+                    IsSingleVidEnabled = false,
+                    IsVideoPlaying = true
+                };
+
+                // Switch to Scrolling Wall
+                vm.SelectedDisplayMode = "Scrolling Wall";
+                Assert.True(vm.IsScrollEnabled);
+
+                // Populate Scrolling Wall slots and pool with specific videos
+                var scrollVideos = new List<string> { videoFiles[0], videoFiles[1], videoFiles[2], videoFiles[3], videoFiles[4], videoFiles[5] };
+                vm.AddVideosToScrollingPool(scrollVideos);
+
+                vm.ScrollSlots.Clear();
+                for (int i = 0; i < 4; i++)
+                {
+                    vm.ScrollSlots.Add(new VideoSlotViewModel
+                    {
+                        CurrentVideoPath = scrollVideos[i],
+                        CollageY = (i / 2) * 50.0,
+                        CollageX = (i % 2) * 50.0,
+                        IsCollageVisible = true
+                    });
+                }
+
+                // Transition to Stackable
+                vm.SelectedDisplayMode = "Stackable";
+                Assert.True(vm.IsStackableEnabled);
+
+                // Base VideoSlots should have adopted the docked scrolling videos
+                for (int i = 0; i < 4; i++)
+                {
+                    Assert.Equal(scrollVideos[i], vm.VideoSlots[i].CurrentVideoPath);
+                }
+
+                // Trigger stack overlay step
+                await vm.TriggerStackStepAsync();
+
+                // Overlay StackSlots must only draw from the scrolling pool
+                Assert.NotEmpty(vm.StackSlots);
+                foreach (var stackSlot in vm.StackSlots)
+                {
+                    Assert.Contains(stackSlot.CurrentVideoPath, vm.ScrollingVideoPool);
+                }
+            }
+            finally
+            {
+                if (Directory.Exists(tempFolder))
+                {
+                    try { Directory.Delete(tempFolder, true); } catch { }
+                }
+                if (File.Exists(tempSettings))
+                {
+                    try { File.Delete(tempSettings); } catch { }
+                }
+            }
+        }
     }
 }
 

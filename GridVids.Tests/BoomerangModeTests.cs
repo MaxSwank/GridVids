@@ -229,30 +229,57 @@ namespace GridVids.Tests
             var psi = new System.Diagnostics.ProcessStartInfo
             {
                 FileName = mpvPath,
-                Arguments = $"--idle=yes --input-ipc-server={fullPipe} --no-terminal",
+                Arguments = $"--idle=yes --input-ipc-server={fullPipe} --no-terminal --no-config",
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardError = true
             };
 
             System.Diagnostics.Process? proc = null;
-            for (int r = 0; r < 5; r++)
+            bool pipeReady = false;
+
+            for (int attempt = 0; attempt < 3; attempt++)
             {
-                try
+                if (proc != null && !proc.HasExited)
                 {
-                    proc = System.Diagnostics.Process.Start(psi);
-                    if (proc != null) break;
+                    try { proc.Kill(); } catch { }
+                    proc.Dispose();
                 }
-                catch (System.ComponentModel.Win32Exception)
+
+                proc = System.Diagnostics.Process.Start(psi);
+                if (proc == null) continue;
+
+                // Wait up to 5s for MPV named pipe server to exist and accept connections
+                for (int check = 0; check < 25; check++)
                 {
-                    await Task.Delay(250);
+                    if (proc.HasExited) break;
+                    try
+                    {
+                        using var testClient = new System.IO.Pipes.NamedPipeClientStream(".", pipeName, System.IO.Pipes.PipeDirection.InOut);
+                        await testClient.ConnectAsync(200);
+                        pipeReady = true;
+                        break;
+                    }
+                    catch
+                    {
+                        await Task.Delay(200);
+                    }
                 }
+
+                if (pipeReady) break;
+                await Task.Delay(300);
             }
+
             Assert.NotNull(proc);
 
             try
             {
-                // Wait briefly for IPC pipe to initialize
-                await Task.Delay(500);
+                string? stderr = null;
+                if (proc.HasExited)
+                {
+                    stderr = await proc.StandardError.ReadToEndAsync();
+                }
+                _output.WriteLine($"MPV pipe ready: {pipeReady}, proc exited: {proc.HasExited}, stderr: {stderr}");
 
                 var slot = new VideoSlotViewModel
                 {
@@ -262,7 +289,7 @@ namespace GridVids.Tests
 
                 // 1. Send: set play-direction backward via slot.SetPropertyAsync
                 await slot.SetPropertyAsync("play-direction", "backward");
-                await Task.Delay(100);
+                await Task.Delay(200);
 
                 // 2. Query: get play-direction
                 string resp1 = await QueryMpvPropertyAsync(pipeName, "play-direction");
@@ -271,7 +298,7 @@ namespace GridVids.Tests
 
                 // 3. Send: set play-direction forward via slot.SetPropertyAsync
                 await slot.SetPropertyAsync("play-direction", "forward");
-                await Task.Delay(100);
+                await Task.Delay(200);
 
                 // 4. Query: get play-direction
                 string resp2 = await QueryMpvPropertyAsync(pipeName, "play-direction");

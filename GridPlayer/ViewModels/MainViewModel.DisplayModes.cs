@@ -19,8 +19,9 @@ namespace GridVids.ViewModels
             if (ScrollSlots.Count > 0 || IsScrollEnabled)
             {
                 double effectiveH = ContainerHeight > 100 ? ContainerHeight : 800;
+                var scrollSnapshot = ScrollSlots.ToList();
                 // Prioritize on-screen docked slots (e.g. slots within [0, effectiveH))
-                list = ScrollSlots
+                list = scrollSnapshot
                     .Where(s => s.CollageY >= -2.0 && s.CollageY < (effectiveH - 0.5))
                     .OrderBy(s => Math.Round(s.CollageY))
                     .ThenBy(s => s.CollageX)
@@ -30,7 +31,7 @@ namespace GridVids.ViewModels
 
                 if (list.Count == 0)
                 {
-                    list = ScrollSlots
+                    list = scrollSnapshot
                         .Where(s => (s.CollageY + s.CollageHeight) > 0 && s.CollageY < effectiveH)
                         .OrderBy(s => s.CollageY)
                         .ThenBy(s => s.CollageX)
@@ -41,7 +42,7 @@ namespace GridVids.ViewModels
 
                 if (list.Count == 0)
                 {
-                    list = ScrollSlots
+                    list = scrollSnapshot
                         .Select(s => s.CurrentVideoPath)
                         .Where(p => !string.IsNullOrEmpty(p))
                         .ToList();

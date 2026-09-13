@@ -94,6 +94,8 @@ namespace GridVids.ViewModels
             if (sourceVideos != null && sourceVideos.Count > 0)
             {
                 _currentVideoBatch = sourceVideos.ToList();
+                _scrollingVideoPool.Clear();
+                _scrollingVideoPool.AddRange(sourceVideos);
             }
 
             _scrollVideoBatchIndex = 0;
@@ -224,6 +226,17 @@ namespace GridVids.ViewModels
                 }
             }
 
+            if (videos != null && videos.Count > 0)
+            {
+                foreach (var v in videos)
+                {
+                    if (!string.IsNullOrEmpty(v) && !_scrollingVideoPool.Contains(v))
+                    {
+                        _scrollingVideoPool.Add(v);
+                    }
+                }
+            }
+
             var newSlots = new List<VideoSlotViewModel>();
             for (int c = 0; c < cols; c++)
             {
@@ -231,7 +244,7 @@ namespace GridVids.ViewModels
                 double x2 = Math.Round((c + 1) * cellW);
                 double w = x2 - x1;
 
-                string videoPath = (videos.Count > 0) ? videos[c % videos.Count] : "";
+                string videoPath = (videos != null && videos.Count > 0) ? videos[c % videos.Count] : "";
 
                 var slot = new VideoSlotViewModel
                 {
@@ -260,7 +273,7 @@ namespace GridVids.ViewModels
                 }
 
                 var validSlots = newSlots.Where(s => s.WindowHandle != IntPtr.Zero).ToList();
-                if (validSlots.Count > 0 && videos.Count > 0)
+                if (validSlots.Count > 0 && videos != null && videos.Count > 0)
                 {
                     var playVideos = validSlots.Select(s => s.CurrentVideoPath).ToList();
                     await _playbackService.PlayAsync(validSlots, playVideos);
@@ -351,15 +364,19 @@ namespace GridVids.ViewModels
                 }
             }
 
-            // 4. In Cycle mode, track distance scrolled to guarantee at least 2 full rows,
+            // 4. In Cycle mode or Testing mode, track distance scrolled,
             // then smoothly dock the scroll onto exact integer row boundaries (0, cellH, 2*cellH...)
             // before initiating the seamless transition to the next display mode.
-            if (IsCycleModesEnabled && SelectedDisplayMode == "Scrolling Wall")
+            if ((IsCycleModesEnabled && SelectedDisplayMode == "Scrolling Wall") || SelectedDisplayMode == "Testing")
             {
                 _scrolledDistanceInCycle += delta;
-                double twoRowsDistance = 2.0 * cellH;
+                bool isTestingMode = (SelectedDisplayMode == "Testing");
+                // In both Testing mode and Cycle mode, scroll exactly 2 full rows before docking onto integer row boundaries
+                double targetDistance = 2.0 * cellH;
 
-                if (_pendingCycleModeSwitch && _scrolledDistanceInCycle >= twoRowsDistance)
+                // In Testing mode, once 2 rows of distance have scrolled, begin docking immediately (or if already >= targetDistance)
+                if ((isTestingMode && _scrolledDistanceInCycle >= (targetDistance - delta)) ||
+                    (!isTestingMode && _pendingCycleModeSwitch && _scrolledDistanceInCycle >= targetDistance))
                 {
                     _isAligningScrollForCycleSwitch = true;
                 }
@@ -373,7 +390,14 @@ namespace GridVids.ViewModels
                         _isAligningScrollForCycleSwitch = false;
                         _pendingCycleModeSwitch = false;
                         _scrolledDistanceInCycle = 0.0;
-                        SwitchToNextCycleMode();
+                        if (isTestingMode)
+                        {
+                            _ = OnTestingScrollDocked();
+                        }
+                        else
+                        {
+                            SwitchToNextCycleMode();
+                        }
                         return;
                     }
 
@@ -384,8 +408,8 @@ namespace GridVids.ViewModels
 
                     double remainingDistance = Math.Abs(targetY - anchor.CollageY);
 
-                    // If already aligned within a tiny threshold (or next step would overshoot)
-                    if (remainingDistance <= 0.001 || remainingDistance <= delta)
+                    // If already aligned within a tiny threshold (or next step would overshoot, or distance >= targetDistance in testing mode)
+                    if (remainingDistance <= 0.001 || remainingDistance <= delta || (isTestingMode && _scrolledDistanceInCycle >= targetDistance))
                     {
                         // Apply the exact final adjustment to land precisely on the target row
                         double finalAdjustment = targetY - anchor.CollageY;
@@ -399,7 +423,14 @@ namespace GridVids.ViewModels
                         _isAligningScrollForCycleSwitch = false;
                         _pendingCycleModeSwitch = false;
                         _scrolledDistanceInCycle = 0.0;
-                        SwitchToNextCycleMode();
+                        if (isTestingMode)
+                        {
+                            _ = OnTestingScrollDocked();
+                        }
+                        else
+                        {
+                            SwitchToNextCycleMode();
+                        }
                         return;
                     }
                 }
