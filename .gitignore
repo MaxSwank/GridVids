@@ -16,3 +16,7 @@ GridPlayer/Binaries/win-x64/doc/mpbindings.png
 GridPlayer/Binaries/win-x64/installer/mpv-icon.ico
 /Binaries/win-x64/Program.runtimeconfig.json
 /Binaries/win-x64/Program.deps.json
+
+# Aider Studio (auto-added)
+REPO_MAP.md
+.aider/
