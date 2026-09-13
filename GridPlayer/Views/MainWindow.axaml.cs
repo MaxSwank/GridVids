@@ -384,6 +384,22 @@ public partial class MainWindow : Window
             AllowMultiple = false
         });
 
+        // Add UI elements for the new cycle delay setting
+        // Example: Adding a ComboBox for cycle delay selection
+        var cycleDelayComboBox = this.FindControl<ComboBox>("CycleDelayComboBox");
+        if (cycleDelayComboBox != null)
+        {
+            cycleDelayComboBox.Items = new List<double> { 10.0, 20.0, 30.0, 40.0 };
+            cycleDelayComboBox.SelectedItem = 40.0; // Default to 40 seconds
+            cycleDelayComboBox.SelectionChanged += (s, e) =>
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.SelectedCycleDelay = (double)cycleDelayComboBox.SelectedItem;
+                }
+            };
+        }
+
         var folder = folders.FirstOrDefault();
         return folder?.Path.LocalPath;
     }
