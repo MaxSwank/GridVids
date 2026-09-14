@@ -389,7 +389,7 @@ public partial class MainWindow : Window
         var cycleDelayComboBox = this.FindControl<ComboBox>("CycleDelayComboBox");
         if (cycleDelayComboBox != null)
         {
-            cycleDelayComboBox.Items = new List<double> { 10.0, 20.0, 30.0, 40.0 };
+            cycleDelayComboBox.Items = new List<double> { 10.0, 20.0, 30.0 };
             cycleDelayComboBox.SelectedItem = 40.0; // Default to 40 seconds
             cycleDelayComboBox.SelectionChanged += (s, e) =>
             {

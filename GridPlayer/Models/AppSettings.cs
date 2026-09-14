@@ -23,7 +23,7 @@ namespace GridVids.Models
         public string SelectedDisplayMode { get; set; } = "Grid";
         public double ScrollSpeed { get; set; } = 80.0;
         public string SelectedScrollDirection { get; set; } = "Up";
-        public double SelectedCycleDelay { get; set; } = 40.0;
+        public double SelectedCycleDelay { get; set; } = 10.0;
         public bool IsDebugEnabled { get; set; } = false;
     }
 }
